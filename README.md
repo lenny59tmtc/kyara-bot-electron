@@ -7,6 +7,17 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.2.1
+
+- **Guide SmartScreen complet** ([SMARTSCREEN.md](SMARTSCREEN.md)) : pourquoi Windows bloque, contournements
+  immédiats (déblocage, ZIP) et solutions durables (certificat EV/OV, Azure Trusted Signing).
+- **Distribution ZIP** `Kyara-Bot-<version>-win-x64.zip` : débloque l'archive **avant** extraction pour éviter
+  la marque Mark-of-the-Web sur les fichiers extraits.
+- **Script d'aide** `scripts/fix-smartscreen.ps1` : déblocage fichier/dossier, installation des certificats,
+  exclusion Defender optionnelle.
+- **CI signable avec un vrai certificat** : secrets `WINDOWS_CSC_LINK` / `WINDOWS_CSC_KEY_PASSWORD`
+  (certificat OV/EV) ou variables `AZURE_*` (Azure Trusted Signing) — signature automatique des builds.
+
 ## Nouveautés de la version 1.2.0
 
 - **Exécutables signés** : application, installateur et version portable embarquent une signature Authenticode
@@ -54,10 +65,15 @@ Les binaires sont publiés dans **[Releases](https://github.com/lenny59tmtc/kyar
 |---|---|
 | `Kyara-Bot-Setup-<version>.exe` | Installateur Windows (installation par utilisateur, sans droits admin) |
 | `Kyara-Bot-Portable-<version>.exe` | Version portable Windows (aucune installation) |
+| `Kyara-Bot-<version>-win-x64.zip` | Version ZIP (à débloquer avant extraction si SmartScreen bloque) |
+| `kyara-bot-root-ca.cer` / `kyara-bot-codesign.cer` | Certificats publics pour faire reconnaître l'éditeur |
+| `SHA256SUMS.txt` | Empreintes SHA-256 des fichiers publiés |
 
-L'installateur et les exécutables sont **signés numériquement** avec le certificat Kyara Bot (auto-signé) :
-Windows identifie l'éditeur « Kyara Bot ». Sur un PC qui ne connaît pas encore ce certificat, SmartScreen
-peut encore afficher un avertissement — voir [Signature Windows et Defender](#signature-windows-et-defender).
+Le certificat utilisé par défaut est **auto-signé** : il identifie l'éditeur mais ne suffit pas toujours à
+supprimer SmartScreen. Pour un contournement immédiat, la Release fournit aussi un **ZIP** : télécharge-le,
+débloque-le (clic droit → Propriétés → Débloquer) **avant** de l'extraire, puis lance `Kyara Bot.exe`.
+Toutes les solutions (ZIP, certificats, exclusion Defender, Azure Trusted Signing, EV/OV) sont détaillées
+dans [SMARTSCREEN.md](SMARTSCREEN.md).
 
 ---
 
@@ -208,6 +224,7 @@ Autres commandes utiles :
 | `npm run icons` | Régénère `build/icon.png` depuis `build/KYARA BOT.svg` (Playwright) |
 | `npm run icons:ico` | Régénère `build/icon.ico` (Pillow requis) |
 | `npm run icons:nsis` | Régénère les visuels du programme d'installation (sidebar/en-tête, Pillow requis) |
+| `npm run smartscreen` | Débloque un fichier/dossier et aide à contourner SmartScreen (voir [SMARTSCREEN.md](SMARTSCREEN.md)) |
 
 ---
 
@@ -219,8 +236,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.2.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.2.0.exe` — exécutable portable
+- `Kyara-Bot-Setup-1.2.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.2.1.exe` — exécutable portable
+- `Kyara-Bot-1.2.1-win-x64.zip` — version ZIP (débloquer avant extraction)
 
 L'icône de l'application est générée depuis `build/KYARA BOT.svg` : `npm run icons` rend le PNG
 (`build/icon.png`, 1024×1024 via Playwright/Chromium) puis `python build/make-ico.py` produit l'ICO
@@ -240,8 +258,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
 ---
@@ -289,9 +307,13 @@ git push origin v1.2.0
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
 ├─ public/index.html    # interface du tableau de bord
 ├─ scripts/
-│  └─ install-code-signing-cert.ps1  # installe le certificat public de signature
-├─ build/               # KYARA BOT.svg, icônes, visuels NSIS, certificats publics de signature, scripts
+│  ├─ install-code-signing-cert.ps1  # installe les certificats publics de signature
+│  ├─ sign-windows.ps1               # signe les builds locaux
+│  ├─ fix-smartscreen.ps1            # déblocage / aide SmartScreen
+│  └─ configure-azure-signing.mjs    # active Azure Trusted Signing en CI si configuré
+├─ build/               # KYARA BOT.svg, icônes, visuels NSIS, certificats publics, exemples de signature
 ├─ LICENSE.txt          # licence d'utilisation (EULA, affichée par l'installateur)
+├─ SMARTSCREEN.md       # guide complet SmartScreen / Defender (contournements et certificats)
 └─ package.json         # scripts, dépendances et configuration electron-builder
 ```
 

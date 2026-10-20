@@ -1,7 +1,7 @@
 {
   "name": "kyara-bot-electron",
   "productName": "Kyara Bot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Kyara Booster Bot — application de bureau Electron (serveur local, tableau de bord et moteur d'échanges automatiques)",
   "author": "lenny59tmtc",
@@ -26,6 +26,7 @@
     "icons": "node build/render-icon.mjs",
     "icons:ico": "python build/make-ico.py",
     "icons:nsis": "python build/make-nsis-assets.py",
+    "smartscreen": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fix-smartscreen.ps1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win",
     "dist:setup": "electron-builder --win nsis",
@@ -62,6 +63,7 @@
     ],
     "win": {
       "icon": "build/icon.ico",
+      "artifactName": "Kyara-Bot-${version}-win-${arch}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -71,6 +73,12 @@
         },
         {
           "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64"
           ]

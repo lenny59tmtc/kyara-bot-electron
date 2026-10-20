@@ -1,0 +1,8 @@
+{
+  "_comment": "Exemple de configuration Azure Trusted Signing. Copie build.win.azureSignOptions dans package.json (ou laisse scripts/configure-azure-signing.mjs le faire en CI). Voir SMARTSCREEN.md.",
+  "azureSignOptions": {
+    "endpoint": "https://wus2.codesigning.azure.net/",
+    "codeSigningAccountName": "mon-compte-trusted-signing",
+    "certificateProfileName": "mon-profil"
+  }
+}
