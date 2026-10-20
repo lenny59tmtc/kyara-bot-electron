@@ -1,0 +1,110 @@
+{
+  "name": "kyara-bot-electron",
+  "productName": "Kyara Bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kyara Booster Bot — application de bureau Electron (serveur local, tableau de bord et moteur d'échanges automatiques)",
+  "author": "lenny59tmtc",
+  "homepage": "https://github.com/lenny59tmtc/kyara-bot-electron",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lenny59tmtc/kyara-bot-electron.git"
+  },
+  "main": "electron/main.cjs",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "bot": "node src/index.js",
+    "dashboard": "node src/server.js",
+    "recon": "node src/recon.js",
+    "icons": "python build/make-icon.py",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win",
+    "dist:setup": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "playwright": "^1.64.1"
+  },
+  "devDependencies": {
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "games.kyara.bot",
+    "productName": "Kyara Bot",
+    "copyright": "Copyright © 2026 lenny59tmtc",
+    "asar": false,
+    "npmRebuild": false,
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "public/**/*",
+      "build/icon.png",
+      "build/icon.ico",
+      "package.json",
+      "API.md"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kyara Bot",
+      "artifactName": "Kyara-Bot-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "Kyara-Bot-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "target": [
+        "AppImage"
+      ],
+      "artifactName": "Kyara-Bot-${version}-linux-${arch}.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg"
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "lenny59tmtc",
+      "repo": "kyara-bot-electron",
+      "releaseType": "release"
+    }
+  }
+}

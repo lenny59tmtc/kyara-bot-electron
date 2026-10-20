@@ -1,0 +1,360 @@
+﻿<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kyara â€” Historique des personnages</title>
+<style>
+  :root {
+    --bg: #0e0d12;
+    --panel: #17151d;
+    --panel2: #1e1b25;
+    --line: #2a2633;
+    --txt: #eceaf2;
+    --dim: #9a95a8;
+    --acc: #ff4d2e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    padding: 20px 24px 14px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #1a1722, #121016);
+    position: sticky; top: 0; z-index: 10;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  h1 span { color: var(--acc); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .stat {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 6px 12px; font-size: 13px;
+  }
+  .stat b { font-size: 16px; margin-right: 5px; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 9;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
+    border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700;
+    cursor: pointer;
+  }
+  .chip.on { color: #0e0d12; }
+  .chip.all.on { background: var(--txt); }
+  input[type=search] {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 12px; font-size: 14px; min-width: 220px;
+  }
+  select {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px; font-size: 14px;
+  }
+  label.only { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 13px; }
+  main { padding: 18px 24px; }
+  .grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card.rL { border-color: rgba(255,176,32,.55); box-shadow: 0 0 18px rgba(255,176,32,.15); }
+  .card.rM { border-color: rgba(255,77,46,.6); box-shadow: 0 0 22px rgba(255,77,46,.22); }
+  .thumb { position: relative; aspect-ratio: 3/4; background: #12101a; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .badge {
+    position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 800;
+    padding: 3px 8px; border-radius: 6px; color: #0e0d12;
+  }
+  .count {
+    position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.7);
+    border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700;
+  }
+  .new {
+    position: absolute; bottom: 8px; left: 8px; background: #3ecf8e; color: #062;
+    border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 800;
+  }
+  .body { padding: 10px 12px 12px; }
+  .name { font-weight: 700; font-size: 14px; }
+  .native { color: var(--dim); font-size: 12px; }
+  .series {
+    color: var(--dim); font-size: 12px; margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .meta { margin-top: 6px; font-size: 11px; color: var(--dim); }
+  .empty, .error { text-align: center; color: var(--dim); padding: 60px 20px; }
+  .error b { color: var(--acc); }
+  .batches { padding: 14px 24px 0; }
+  .batches h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 0 0 10px; }
+  .batch {
+    background: var(--panel); border: 1px solid rgba(255,77,46,.35);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .bhead { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  .bhead .t { color: var(--dim); font-size: 13px; }
+  .bhead .p { font-weight: 800; color: var(--acc); }
+  .bchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .bchips span { font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 8px; border: 1px solid var(--line); }
+  .brow { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .bcell { position: relative; flex: 0 0 auto; width: 58px; }
+  .bcell img { width: 58px; height: 76px; object-fit: cover; border-radius: 8px; background: #12101a; }
+  .bcell .rb {
+    position: absolute; top: 3px; left: 3px; font-size: 9px; font-weight: 800;
+    padding: 1px 4px; border-radius: 4px; color: #0e0d12;
+  }
+  .bcell .nm {
+    font-size: 10px; color: var(--dim); text-align: center; margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .balerts { margin-top: 8px; color: var(--gold, #ffb020); font-size: 12px; font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ã‚­ <span>Kyara</span> â€” Personnages obtenus</h1>
+  <div class="sub" id="sub">Chargement de l'historiqueâ€¦</div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<section class="batches" id="batchesSec" style="display:none">
+  <h2>Comptes rendus des multi-ouvertures</h2>
+  <div id="batches"></div>
+</section>
+
+<div class="toolbar">
+  <div class="chips" id="chips"></div>
+  <input type="search" id="q" placeholder="Rechercher un perso, une sÃ©rieâ€¦" />
+  <select id="sort">
+    <option value="rarity">Trier : raretÃ©</option>
+    <option value="count">Trier : nb d'exemplaires</option>
+    <option value="name">Trier : nom</option>
+    <option value="recent">Trier : rÃ©cent</option>
+  </select>
+  <label class="only"><input type="checkbox" id="onlyNew" /> Nouveaux uniquement</label>
+</div>
+
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="error" id="error" style="display:none"></div>
+</main>
+
+<script>
+const RARITY = {
+  M: ["Mythique", "#FF4D2E"],
+  L: ["LÃ©gendaire", "#F5C518"],
+  E: ["Ã‰pique", "#B072FF"],
+  R: ["Rare", "#4D9BFF"],
+  U: ["Peu commun", "#3FBF7F"],
+  C: ["Commun", "#B5B1BB"],
+};
+const ORDER = ["M", "L", "E", "R", "U", "C"];
+let cards = [];
+let filter = "ALL";
+
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function fmt(iso) {
+  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function aggregate(history) {
+  const map = new Map();
+  for (const open of history) {
+    for (const c of open.cards || []) {
+      const key = c.id ?? `${c.name}|${c.series}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: c.id,
+          name: c.name,
+          native: c.native,
+          series: c.series,
+          image: c.image,
+          rarity: c.rarity,
+          pow: c.pow,
+          aura: c.aura,
+          count: 0,
+          isNew: false,
+          firstAt: open.at,
+          lastAt: open.at,
+          packIds: new Set(),
+        });
+      }
+      const e = map.get(key);
+      e.count++;
+      if (c.isNew) e.isNew = true;
+      if (open.at < e.firstAt) e.firstAt = open.at;
+      if (open.at > e.lastAt) e.lastAt = open.at;
+      if (open.packId) e.packIds.add(open.packId);
+      if (ORDER.indexOf(c.rarity) < ORDER.indexOf(e.rarity)) e.rarity = c.rarity;
+    }
+  }
+  return [...map.values()].map((e) => ({ ...e, packIds: [...e.packIds] }));
+}
+
+function renderChips() {
+  const counts = {};
+  for (const c of cards) counts[c.rarity] = (counts[c.rarity] || 0) + 1;
+  const html = [
+    `<button class="chip all ${filter === "ALL" ? "on" : ""}" data-f="ALL">Tous Â· ${cards.length}</button>`,
+    ...ORDER.filter((r) => counts[r]).map(
+      (r) => `<button class="chip ${filter === r ? "on" : ""}" data-f="${r}" style="${filter === r ? `background:${RARITY[r][1]}` : ""}">${RARITY[r][0]} Â· ${counts[r]}</button>`,
+    ),
+  ].join("");
+  $("chips").innerHTML = html;
+  $("chips").querySelectorAll(".chip").forEach((b) =>
+    b.addEventListener("click", () => {
+      filter = b.dataset.f;
+      render();
+    }),
+  );
+}
+
+function renderStats() {
+  const byRarity = {};
+  let totalCopies = 0;
+  for (const c of cards) {
+    byRarity[c.rarity] = (byRarity[c.rarity] || 0) + 1;
+    totalCopies += c.count;
+  }
+  $("stats").innerHTML = [
+    [`Persos diffÃ©rents`, cards.length],
+    [`Cartes au total`, totalCopies],
+    ...ORDER.filter((r) => byRarity[r]).map((r) => [RARITY[r][0], byRarity[r]]),
+  ]
+    .map(([k, v]) => `<div class="stat"><b style="color:${RARITY[k] ? RARITY[k][1] : "inherit"}">${v}</b>${k}</div>`)
+    .join("");
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const onlyNew = $("onlyNew").checked;
+  const sort = $("sort").value;
+
+  let list = cards.filter((c) => {
+    if (filter !== "ALL" && c.rarity !== filter) return false;
+    if (onlyNew && !c.isNew) return false;
+    if (!q) return true;
+    return `${c.name} ${c.native} ${c.series}`.toLowerCase().includes(q);
+  });
+
+  list.sort((a, b) => {
+    if (sort === "count") return b.count - a.count || ORDER.indexOf(a.rarity) - ORDER.indexOf(b.rarity);
+    if (sort === "name") return a.name.localeCompare(b.name, "fr");
+    if (sort === "recent") return b.lastAt.localeCompare(a.lastAt);
+    return ORDER.indexOf(a.rarity) - ORDER.indexOf(b.rarity) || b.count - a.count || a.name.localeCompare(b.name, "fr");
+  });
+
+  renderChips();
+  renderStats();
+
+  if (!list.length) {
+    $("grid").innerHTML = `<div class="empty">Aucun personnage ne correspond.</div>`;
+    return;
+  }
+
+  $("grid").innerHTML = list
+    .map((c) => {
+      const [label, color] = RARITY[c.rarity] || [c.rarity, "#888"];
+      return `<div class="card r${c.rarity}">
+        <div class="thumb">
+          <img src="${escapeHtml(c.image)}" loading="lazy" onerror="this.style.visibility='hidden'" />
+          <span class="badge" style="background:${color}">${label}</span>
+          <span class="count">Ã—${c.count}</span>
+          ${c.isNew ? '<span class="new">NOUVEAU</span>' : ""}
+        </div>
+        <div class="body">
+          <div class="name">${escapeHtml(c.name)}</div>
+          <div class="native">${escapeHtml(c.native || "")}</div>
+          <div class="series">${escapeHtml(c.series || "")}</div>
+          <div class="meta">Obtenu ${fmt(c.firstAt)}${c.count > 1 ? ` Â· dernier le ${fmt(c.lastAt)}` : ""}</div>
+        </div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderBatches(batches) {
+  const sec = $("batchesSec");
+  if (!batches?.length) {
+    sec.style.display = "none";
+    return;
+  }
+  sec.style.display = "block";
+  $("batches").innerHTML = batches
+    .map((b) => {
+      const chips = ORDER.filter((r) => b.byRarity?.[r])
+        .map((r) => `<span style="color:${RARITY[r][1]};border-color:${RARITY[r][1]}55">${RARITY[r][0]}: ${b.byRarity[r]}</span>`)
+        .join("");
+      const cells = (b.top || [])
+        .slice(0, 14)
+        .map((c) => {
+          const [, color] = RARITY[c.rarity] || ["#888", "#888"];
+          return `<div class="bcell" title="${escapeHtml(c.name)} (${c.rarity})">
+            <img src="${escapeHtml(c.image)}" loading="lazy" onerror="this.style.visibility='hidden'" />
+            <span class="rb" style="background:${color}">${c.rarity}</span>
+            <div class="nm">${escapeHtml(c.name)}</div>
+          </div>`;
+        })
+        .join("");
+      const alerts = (b.alerts || []).map((c) => `${escapeHtml(c.name)} (${c.rarity})`).join(" Â· ");
+      return `<div class="batch">
+        <div class="bhead">
+          <span class="p">${escapeHtml(b.packName || b.packId || "Multi")}</span>
+          <span class="t">${fmt(b.at)} Â· ${b.boosters} boosters Â· ${b.cards?.length ?? 0} cartes Â· ${b.newCards ?? 0} nouvelles (${b.newUnique ?? 0} persos)${b.goldens ? ` Â· ${b.goldens} dorÃ©(s)` : ""}${b.godPacks ? ` Â· ${b.godPacks} divin(s)` : ""}</span>
+        </div>
+        <div class="bchips">${chips}</div>
+        <div class="brow">${cells}</div>
+        ${alerts ? `<div class="balerts">â˜… ${alerts}</div>` : ""}
+      </div>`;
+    })
+    .join("");
+}
+
+async function loadBatches() {
+  try {
+    const r = await fetch("/api/batches?limit=10");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    renderBatches((await r.json()).batches);
+  } catch {}
+}
+
+async function load() {
+  try {
+    const r = await fetch("/api/history?limit=10000");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    cards = aggregate(d.history);
+    $("sub").textContent = `${d.history.length} ouverture(s) enregistrÃ©e(s) Â· mise Ã  jour ${new Date().toLocaleTimeString("fr-FR")}`;
+    $("error").style.display = "none";
+    render();
+  } catch (e) {
+    $("sub").textContent = "Historique indisponible";
+    $("grid").innerHTML = "";
+    const err = $("error");
+    err.style.display = "block";
+    err.innerHTML = `Impossible de joindre le bot sur <b>http://localhost:8787</b>.<br />Lance-le avec <b>lancer.bat</b> puis recharge cette page.`;
+  }
+}
+
+$("q").addEventListener("input", render);
+$("sort").addEventListener("change", render);
+$("onlyNew").addEventListener("change", render);
+
+load();
+loadBatches();
+setInterval(load, 30000);
+setInterval(loadBatches, 30000);
+</script>
+</body>
+</html>
+

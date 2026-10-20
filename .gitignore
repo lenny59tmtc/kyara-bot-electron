@@ -1,0 +1,30 @@
+# Dépendances
+node_modules/
+.npm-cache/
+.tools/
+.tmp/
+
+# Builds electron-builder
+dist/
+out/
+build/output/
+
+# Données locales du bot (config, historique, profil Chromium, dumps réseau)
+data/
+profile/
+recon/
+logs/
+
+# Journaux
+bot.log
+bot.err
+*.log
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# Ancienne page locale remplacée par public/historique.html
+/historique.html

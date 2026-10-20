@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kyara Bot</title>
+<style>
+  :root {
+    --bg: #0e0d12;
+    --panel: #17151d;
+    --panel2: #1e1b25;
+    --line: #2a2633;
+    --txt: #eceaf2;
+    --dim: #9a95a8;
+    --acc: #ff4d2e;
+    --gold: #ffb020;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--txt);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    padding: 18px 22px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #1a1722, #121016);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .brand { font-weight: 800; font-size: 20px; letter-spacing: .5px; }
+  .brand span { color: var(--acc); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #666; display: inline-block; margin-right: 6px; }
+  .dot.on { background: #3ecf8e; box-shadow: 0 0 10px #3ecf8e; }
+  .dot.err { background: var(--acc); box-shadow: 0 0 10px var(--acc); }
+  .spacer { flex: 1; }
+  .pill {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; color: var(--dim);
+  }
+  .pill b { color: var(--txt); }
+  button {
+    background: var(--acc); color: #fff; border: 0; border-radius: 10px;
+    padding: 9px 16px; font-weight: 700; cursor: pointer; font-size: 14px;
+  }
+  button.ghost { background: var(--panel2); border: 1px solid var(--line); color: var(--txt); }
+  button:disabled { opacity: .5; cursor: default; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 18px; padding: 18px 22px; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .stat {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; min-width: 110px;
+  }
+  .stat .v { font-size: 22px; font-weight: 800; }
+  .stat .k { font-size: 12px; color: var(--dim); }
+  .rarities { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .rch {
+    font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel2);
+  }
+  .opening {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px;
+    background: var(--panel2);
+  }
+  .opening.golden { border-color: var(--gold); box-shadow: 0 0 24px rgba(255,176,32,.25); }
+  .opening.rare { border-color: rgba(255,176,32,.45); }
+  .batch { border: 1px solid rgba(255,77,46,.4); border-radius: 12px; padding: 12px; margin-bottom: 12px; background: linear-gradient(180deg, #221a1c, var(--panel2)); }
+  .bhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .bhead .t { color: var(--dim); font-size: 13px; }
+  .bhead .p { font-weight: 800; color: var(--acc); }
+  .brar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .alerts { margin-top: 8px; color: var(--gold); font-size: 13px; font-weight: 700; }
+  .bar { height: 8px; background: #211e29; border-radius: 999px; overflow: hidden; margin: 6px 0 8px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--acc), var(--gold)); }
+  .tsep { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .tsep .w { font-weight: 800; color: var(--gold); }
+  .tsep .r { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+  nav.tabs { display: flex; gap: 6px; }
+  nav.tabs button {
+    background: transparent; border: 1px solid var(--line); color: var(--dim);
+    border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  nav.tabs button.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+  table.dup { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.dup th {
+    text-align: left; color: var(--dim); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .5px; padding: 8px 10px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--panel); cursor: pointer; white-space: nowrap;
+  }
+  table.dup td { padding: 8px 10px; border-bottom: 1px solid #211e29; vertical-align: middle; }
+  table.dup tr:hover td { background: #1c1924; }
+  .who { display: flex; align-items: center; gap: 10px; min-width: 190px; }
+  .who img { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; background: #12101a; }
+  .who .n { font-weight: 700; }
+  .who .s { color: var(--dim); font-size: 11px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .price { font-weight: 800; color: var(--gold); }
+  .sub2 { color: var(--dim); font-size: 11px; }
+  .tag { font-size: 10px; font-weight: 800; border-radius: 5px; padding: 2px 6px; white-space: nowrap; }
+  .tag.ok { background: #143; color: #6f6; }
+  .tag.warn { background: #431; color: #fa6; }
+  .tag.no { background: #333; color: #999; }
+  .ohead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .ohead .t { color: var(--dim); font-size: 13px; }
+  .ohead .p { font-weight: 700; }
+  .cards { display: flex; flex-wrap: wrap; gap: 8px; }
+  .card {
+    display: flex; align-items: center; gap: 8px; background: #14121a;
+    border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px 5px 5px;
+  }
+  .card img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: #222; }
+  .card .n { font-size: 13px; font-weight: 600; }
+  .card .s { font-size: 11px; color: var(--dim); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip {
+    font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 6px; color: #0e0d12;
+  }
+  .new { font-size: 10px; background: #3ecf8e; color: #062; border-radius: 5px; padding: 1px 5px; font-weight: 800; }
+  .log { font: 12px/1.7 "JetBrains Mono", Consolas, monospace; color: var(--dim); max-height: 300px; overflow: auto; }
+  .log .rare { color: var(--gold); }
+  .log .error { color: var(--acc); }
+  .cfg { display: grid; gap: 10px; }
+  .cfg label { font-size: 13px; color: var(--dim); display: grid; gap: 4px; }
+  select, input[type=number] {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px; font-size: 14px;
+  }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .empty { color: var(--dim); text-align: center; padding: 30px 0; }
+  #toast {
+    position: fixed; right: 20px; bottom: 20px; background: var(--acc); color: #fff;
+    padding: 12px 18px; border-radius: 12px; font-weight: 700; display: none; z-index: 20;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">キ <span>Kyara</span> Bot</div>
+  <div class="pill"><span class="dot" id="dot"></span><span id="status">démarrage…</span></div>
+  <div class="pill" id="user">—</div>
+  <div class="pill">Boosters gratuits: <b id="free">—</b></div>
+  <div class="pill">Échanges: <b id="tradeCount">—</b></div>
+  <div class="pill" id="batchPill" style="display:none">Multi: <b id="batchProg">—</b></div>
+  <div class="pill">Prochain: <b id="next">—</b></div>
+  <div class="spacer"></div>
+  <nav class="tabs">
+    <button id="tabOpen" class="on">Ouvertures</button>
+    <button id="tabDup">Doublons à vendre</button>
+    <button id="tabTrade">Échanges</button>
+  </nav>
+  <button id="toggle">Arrêter</button>
+</header>
+
+<main id="viewOpen">
+  <section>
+    <div class="stats" id="stats"></div>
+    <div class="rarities" id="rarities"></div>
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Comptes rendus des multis</h2>
+      <div id="batches"><div class="empty">En attente du premier multi…</div></div>
+    </div>
+    <div class="panel">
+      <h2>Ouvertures</h2>
+      <div id="history"><div class="empty">Aucune ouverture pour l'instant</div></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Configuration</h2>
+      <div class="cfg">
+        <label>Booster gratuit à ouvrir
+          <select id="pack">
+            <option value="all">Shōnen Mix (tous)</option>
+            <option value="shonen">Shōnen</option>
+            <option value="isekai">Isekai</option>
+            <option value="seinen">Seinen</option>
+            <option value="shojo">Shōjo</option>
+            <option value="sport">Sport</option>
+            <option value="mecha">Mecha</option>
+            <option value="waifu">Waifus</option>
+            <option value="husbando">Husbandos</option>
+            <option value="season-2026-fall">Automne 2026</option>
+          </select>
+        </label>
+        <label>Vérifier toutes les X secondes
+          <input type="number" id="poll" min="15" max="600" step="5" />
+        </label>
+        <label>Multi aléatoire entre
+          <div class="row">
+            <input type="number" id="batchMin" min="2" max="10" step="1" />
+            <span>et</span>
+            <input type="number" id="batchMax" min="2" max="10" step="1" />
+            <span>boosters</span>
+          </div>
+        </label>
+        <div class="row">
+          <label class="row"><input type="checkbox" id="daily" /> Pack du jour</label>
+          <label class="row"><input type="checkbox" id="sound" /> Son sur rare</label>
+          <button class="ghost" id="testSound">Tester le son</button>
+        </div>
+        <label>Vente des doublons
+          <div class="row">
+            <select id="saleType">
+              <option value="fixed">Vente directe (prix fixe)</option>
+              <option value="auction">Enchère</option>
+            </select>
+            <select id="saleDuration">
+              <option value="12">12 h</option>
+              <option value="24">24 h</option>
+              <option value="48">48 h</option>
+            </select>
+          </div>
+        </label>
+        <div class="row">
+          <button class="ghost" id="save">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Journal</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</main>
+
+<main id="viewDup" style="display:none">
+  <section>
+    <div class="panel">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <h2 style="margin:0">Mes doublons & prix de vente conseillé</h2>
+        <div class="spacer"></div>
+        <span class="sub2" id="dupAt"></span>
+        <button class="ghost" id="dupRefresh">Rafraîchir le marché</button>
+      </div>
+      <div class="stats" id="dupStats"></div>
+      <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
+        <input type="search" id="dupQ" placeholder="Rechercher un perso, une série…" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;min-width:220px" />
+        <select id="dupRarity" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="ALL">Toutes les raretés</option>
+          <option value="M">Mythique</option>
+          <option value="L">Légendaire</option>
+          <option value="E">Épique</option>
+          <option value="R">Rare</option>
+          <option value="U">Peu commun</option>
+          <option value="C">Commun</option>
+        </select>
+        <label class="row sub2"><input type="checkbox" id="dupSellable" /> Vendables uniquement</label>
+      </div>
+      <div id="dupTable"><div class="empty">Chargement…</div></div>
+    </div>
+  </section>
+</main>
+
+<main id="viewTrade" style="display:none">
+  <section>
+    <div class="panel">
+      <div class="ohead">
+        <h2 style="margin:0">Échanges automatiques</h2>
+        <div class="spacer"></div>
+        <span class="sub2" id="tradeAt"></span>
+      </div>
+      <div class="stats" id="tradeStats"></div>
+      <div class="rarities" id="tradeRarities"></div>
+      <div class="sub2" id="tradeStatus">En attente…</div>
+    </div>
+    <div class="panel" style="margin-top:18px">
+      <h2>Cartes obtenues par tranche de 10 minutes</h2>
+      <div id="tradeBuckets"><div class="empty">Aucun échange pour l'instant</div></div>
+    </div>
+    <div class="panel" style="margin-top:18px">
+      <h2>Derniers échanges</h2>
+      <div id="tradeList"><div class="empty">Aucun échange pour l'instant</div></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Réglages des échanges</h2>
+      <div class="cfg">
+        <label class="row"><input type="checkbox" id="tradesAuto" /> Échanges automatiques activés</label>
+        <p class="sub2" style="margin:0">
+          Va chercher les annonces de l'onglet <b>Échanges</b> du marché avec les filtres
+          <b>« Que je n'ai pas »</b> et <b>« Contre mes doublons »</b> (vérifiés à chaque cycle),
+          toutes les 8 à 12 s en aléatoire, puis valide instantanément les échanges disponibles.
+          En pause pendant les ouvertures de boosters.
+        </p>
+        <div class="row"><button class="ghost" id="tradeSave">Enregistrer</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Journal des échanges</h2>
+      <div class="log" id="tradeLog"></div>
+    </div>
+  </aside>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const RARITY = {
+  C: ["Commun", "#B5B1BB"],
+  U: ["Peu commun", "#3FBF7F"],
+  R: ["Rare", "#4D9BFF"],
+  E: ["Épique", "#B072FF"],
+  L: ["Légendaire", "#F5C518"],
+  M: ["Mythique", "#FF4D2E"],
+};
+const ORDER = ["C", "U", "R", "E", "L", "M"];
+let state = null;
+let config = null;
+
+const $ = (id) => document.getElementById(id);
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  setTimeout(() => (t.style.display = "none"), 3500);
+}
+
+function playAlert(god = false) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = god ? [900, 1200, 1500, 1900, 2400] : [1050, 1400, 1750];
+    const dur = god ? 0.14 : 0.1;
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.value = f;
+      const t0 = ctx.currentTime + i * dur;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + (god ? 0.55 : 0.35));
+      o.connect(g).connect(ctx.destination);
+      o.start(t0);
+      o.stop(t0 + (god ? 0.6 : 0.4));
+    });
+  } catch {}
+}
+
+function renderState() {
+  if (!state) return;
+  const dot = $("dot");
+  dot.className = "dot" + (state.running ? " on" : state.lastError ? " err" : "");
+  $("status").textContent = state.running ? "en marche" : "arrêté";
+  $("user").innerHTML = state.pseudo
+    ? `<img src="${state.avatar || ""}" style="width:18px;height:18px;border-radius:50%;vertical-align:-4px" onerror="this.remove()" /> <b>${state.pseudo}</b> · ⚡ ${state.chakra ?? "—"}`
+    : "non connecté";
+  $("free").textContent = state.freePacks ?? "—";
+  $("toggle").textContent = state.running ? "Arrêter" : "Démarrer";
+  const bp = $("batchPill");
+  if (state.batch) {
+    bp.style.display = "";
+    $("batchProg").textContent = `${state.batch.done}/${state.batch.target ?? state.batch.free}`;
+  } else {
+    bp.style.display = "none";
+  }
+  $("tradeCount").textContent = tradeData?.stats?.trades ?? state.trade?.accepted ?? 0;
+  renderTradeStatus(state.trade);
+  renderLog(state.log || []);
+  renderTradeLog(state.log || []);
+}
+
+function renderTradeStatus(t) {
+  const el = $("tradeStatus");
+  if (!el) return;
+  if (!t) return;
+  if (state?.config?.tradesAuto === false) {
+    el.textContent = "Échanges automatiques désactivés";
+    return;
+  }
+  const parts = [];
+  parts.push(t.running ? "en marche" : "arrêté");
+  if (t.filters?.missing && t.filters?.dupes) parts.push("filtres « Que je n'ai pas » + « Contre mes doublons » ✔");
+  else parts.push("filtres non confirmés");
+  parts.push(`${t.candidates ?? 0} annonce(s) valide(s) détectée(s)`);
+  if (t.dialogHandled) parts.push(`fenêtre de confirmation traitée ${t.dialogHandled}×`);
+  if (t.waitingOpening) parts.push("en pause: ouverture de booster");
+  if (t.lastCycleAt) parts.push(`dernier cycle ${new Date(t.lastCycleAt).toLocaleTimeString("fr-FR")}`);
+  if (t.lastError) parts.push(`erreur: ${t.lastError}`);
+  el.textContent = parts.join(" · ");
+}
+
+function renderTradeLog(entries) {
+  const rows = (entries || []).filter((e) => String(e.msg || "").startsWith("Échanges ·"));
+  $("tradeLog").innerHTML = rows.length
+    ? rows.map((e) => `<div class="${e.level}">${fmtTime(e.at)} · ${escapeHtml(e.msg.replace(/^Échanges · /, ""))}</div>`).join("")
+    : '<div class="sub2">Aucune activité pour l\'instant</div>';
+}
+
+function renderLog(entries) {
+  $("log").innerHTML = entries
+    .map((e) => `<div class="${e.level}">${fmtTime(e.at)} · ${escapeHtml(e.msg)}</div>`)
+    .join("");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function cardHtml(c) {
+  const [label, color] = RARITY[c.rarity] || [c.rarity, "#888"];
+  return `<div class="card">
+    <img src="${c.image}" loading="lazy" onerror="this.style.visibility='hidden'" />
+    <div>
+      <div class="n">${escapeHtml(c.name)} ${c.isNew ? '<span class="new">NOUVEAU</span>' : ""}</div>
+      <div class="s">${escapeHtml(c.series || "")}</div>
+    </div>
+    <span class="chip" style="background:${color}">${label}</span>
+  </div>`;
+}
+
+function renderHistory(history) {
+  if (!history.length) {
+    $("history").innerHTML = '<div class="empty">Aucune ouverture pour l\'instant</div>';
+    return;
+  }
+  $("history").innerHTML = history
+    .map((e) => {
+      const best = [...(e.cards || [])].sort((a, b) => ORDER.indexOf(b.rarity) - ORDER.indexOf(a.rarity))[0];
+      const isAlert = e.golden || e.godPack || (e.cards || []).some((c) => ORDER.indexOf(c.rarity) >= 4);
+      return `<div class="opening ${e.golden ? "golden" : isAlert ? "rare" : ""}">
+        <div class="ohead">
+          <span class="t">${fmtTime(e.at)}</span>
+          <span class="p">${escapeHtml(e.packName || e.packId)}</span>
+          <span class="t">${(e.cards || []).length} cartes${e.golden ? " · DORÉ" : ""}${e.godPack ? " · PACK DIVIN" : ""}${best ? ` · meilleure: ${escapeHtml(best.name)} (${best.rarity})` : ""}</span>
+        </div>
+        <div class="cards">${(e.cards || []).map(cardHtml).join("")}</div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderBatches(batches) {
+  if (!batches?.length) {
+    $("batches").innerHTML = '<div class="empty">En attente du premier multi…</div>';
+    return;
+  }
+  $("batches").innerHTML = batches
+    .map((b) => {
+      const rar = ORDER.map((r) => (b.byRarity?.[r] ? `<span class="rch" style="color:${RARITY[r][1]}">${RARITY[r][0]}: ${b.byRarity[r]}</span>` : "")).join("");
+      return `<div class="batch">
+        <div class="bhead">
+          <span class="t">${fmtTime(b.at)}</span>
+          <span class="p">${escapeHtml(b.packName || b.packId || "multi")}</span>
+          <span class="t">${b.boosters} boosters · ${b.cards?.length ?? 0} cartes · ${b.newCards ?? 0} nouvelles (${b.newUnique ?? 0} persos)${b.goldens ? ` · ${b.goldens} doré(s)` : ""}${b.godPacks ? ` · ${b.godPacks} divin(s)` : ""}</span>
+        </div>
+        <div class="brar">${rar}</div>
+        <div class="cards">${(b.top || []).slice(0, 8).map(cardHtml).join("")}</div>
+        ${b.alerts?.length ? `<div class="alerts">★ ${b.alerts.map((c) => `${escapeHtml(c.name)} (${c.rarity})`).join(" · ")}</div>` : ""}
+      </div>`;
+    })
+    .join("");
+}
+
+async function refreshBatches() {
+  const r = await fetch("/api/batches?limit=20");
+  const d = await r.json();
+  renderBatches(d.batches);
+}
+
+let tradeData = null;
+
+async function refreshTrades() {
+  try {
+    const r = await fetch("/api/trades?limit=200");
+    tradeData = await r.json();
+    renderTrades(tradeData);
+  } catch {}
+}
+
+function renderTrades(data) {
+  if (!data) return;
+  const s = data.stats || {};
+  $("tradeCount").textContent = s.trades ?? 0;
+  $("tradeStats").innerHTML = [
+    ["Échanges", s.trades ?? 0],
+    ["Cartes obtenues", s.cards ?? 0],
+    ["Valides au dernier cycle", data.state?.candidates ?? 0],
+    ["Dernier", s.lastAt ? new Date(s.lastAt).toLocaleTimeString("fr-FR") : "—"],
+  ]
+    .map(([k, v]) => `<div class="stat"><div class="v">${escapeHtml(String(v))}</div><div class="k">${k}</div></div>`)
+    .join("");
+  $("tradeRarities").innerHTML = ORDER.map(
+    (r) => `<span class="rch" style="color:${RARITY[r][1]}">${RARITY[r][0]}: ${s.byRarity?.[r] ?? 0}</span>`,
+  ).join("");
+  $("tradeAt").textContent = s.lastAt ? `dernier échange ${fmtTime(s.lastAt)}` : "aucun échange";
+  renderTradeBuckets(data.buckets || []);
+  renderTradeList(data.trades || []);
+  renderTradeStatus(data.state ?? state?.trade);
+}
+
+function renderTradeBuckets(buckets) {
+  if (!buckets.length) {
+    $("tradeBuckets").innerHTML = '<div class="empty">Aucun échange pour l\'instant</div>';
+    return;
+  }
+  const max = Math.max(...buckets.map((b) => b.cards || 0), 1);
+  $("tradeBuckets").innerHTML = buckets
+    .slice(0, 24)
+    .map((b) => {
+      const rar = ORDER.map((r) =>
+        b.byRarity?.[r] ? `<span class="rch" style="color:${RARITY[r][1]}">${RARITY[r][0]}: ${b.byRarity[r]}</span>` : "",
+      ).join("");
+      const cards = (b.items || []).map(cardHtml).join("");
+      const w = Math.max(4, Math.round(((b.cards || 0) / max) * 100));
+      return `<div class="batch" style="border-color:var(--line);background:var(--panel2)">
+        <div class="bhead">
+          <span class="t">${b.label} – ${b.endLabel}</span>
+          <span class="p">${b.trades} échange${b.trades > 1 ? "s" : ""}</span>
+          <span class="t">${b.cards} carte${b.cards > 1 ? "s" : ""} obtenue${b.cards > 1 ? "s" : ""}</span>
+        </div>
+        <div class="bar"><i style="width:${w}%"></i></div>
+        <div class="brar">${rar}</div>
+        ${cards ? `<div class="cards">${cards}</div>` : ""}
+      </div>`;
+    })
+    .join("");
+}
+
+function renderTradeList(trades) {
+  if (!trades.length) {
+    $("tradeList").innerHTML = '<div class="empty">Aucun échange pour l\'instant</div>';
+    return;
+  }
+  $("tradeList").innerHTML = trades
+    .slice(0, 60)
+    .map(
+      (t) => `<div class="opening">
+        <div class="ohead">
+          <span class="t">${fmtTime(t.at)}</span>
+          <span class="p">${escapeHtml(t.name)} (${escapeHtml(t.rarity || "?")})</span>
+          <span class="t">contre ${escapeHtml(t.gaveName || "—")}${t.from ? ` · ${escapeHtml(t.from)}` : ""}${
+            t.series ? ` · ${escapeHtml(t.series)}` : ""
+          }</span>
+        </div>
+        <div class="cards">${cardHtml({ name: t.name, series: t.series, rarity: t.rarity, image: t.image })}</div>
+      </div>`,
+    )
+    .join("");
+}
+
+function renderStats(stats) {
+  const s = stats || {};
+  $("stats").innerHTML = [
+    ["Ouvertures", s.openings ?? 0],
+    ["Cartes", s.cards ?? 0],
+    ["Nouvelles", s.newCards ?? 0],
+    ["Dorés", s.goldens ?? 0],
+    ["Packs divins", s.godPacks ?? 0],
+  ]
+    .map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`)
+    .join("");
+  $("rarities").innerHTML = ORDER.map((r) => {
+    const [label, color] = RARITY[r];
+    return `<span class="rch" style="color:${color}">${label}: ${s.byRarity?.[r] ?? 0}</span>`;
+  }).join("");
+}
+
+async function refreshHistory() {
+  const r = await fetch("/api/history?limit=60");
+  const d = await r.json();
+  renderHistory(d.history);
+  renderStats(d.stats);
+}
+
+function applyConfig(c) {
+  config = c;
+  $("pack").value = c.pack;
+  $("poll").value = c.pollSeconds;
+  $("daily").checked = !!c.openDaily;
+  $("sound").checked = !!c.soundOnRare;
+  $("batchMin").value = c.batchMin ?? 6;
+  $("batchMax").value = c.batchMax ?? 8;
+  $("saleType").value = c.saleType || "fixed";
+  $("saleDuration").value = String(c.saleDurationHours ?? 12);
+  $("tradesAuto").checked = c.tradesAuto !== false;
+}
+
+$("toggle").addEventListener("click", async () => {
+  $("toggle").disabled = true;
+  await fetch(state?.running ? "/api/bot/stop" : "/api/bot/start", { method: "POST" });
+  setTimeout(async () => {
+    state = (await (await fetch("/api/state")).json());
+    renderState();
+    $("toggle").disabled = false;
+  }, 600);
+});
+
+$("save").addEventListener("click", async () => {
+  const r = await fetch("/api/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      pack: $("pack").value,
+      pollSeconds: Number($("poll").value) || 45,
+      openDaily: $("daily").checked,
+      soundOnRare: $("sound").checked,
+      batchMin: Number($("batchMin").value) || 6,
+      batchMax: Number($("batchMax").value) || 8,
+      saleType: $("saleType").value,
+      saleDurationHours: Number($("saleDuration").value) || 12,
+    }),
+  });
+  applyConfig(await r.json());
+  toast("Configuration enregistrée");
+});
+
+$("testSound").addEventListener("click", playAlert);
+
+$("tradeSave").addEventListener("click", async () => {
+  const r = await fetch("/api/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tradesAuto: $("tradesAuto").checked }),
+  });
+  applyConfig(await r.json());
+  toast($("tradesAuto").checked ? "Échanges automatiques activés" : "Échanges automatiques désactivés");
+  renderTradeStatus(state?.trade);
+  refreshTrades();
+});
+
+const es = new EventSource("/events");
+es.onmessage = (ev) => {
+  const msg = JSON.parse(ev.data);
+  if (msg.type === "state") {
+    state = msg.state;
+    renderState();
+    if (state.config && (!config || state.config.pack !== config.pack)) applyConfig(state.config);
+  }
+  if (msg.type === "log") {
+    state = state || {};
+    state.log = [msg.entry, ...(state.log || [])].slice(0, 80);
+    renderLog(state.log);
+  }
+  if (msg.type === "batch") {
+    const b = msg.batch;
+    toast(`Multi terminé: ${b.boosters} boosters · ${b.cards.length} cartes`);
+    refreshBatches();
+    refreshHistory();
+    return;
+  }
+  if (msg.type === "trade") {
+    const t = msg.trade;
+    toast(`Échange: ${t.name} obtenu contre ${t.gaveName}`);
+    if (config?.soundOnRare !== false && ORDER.indexOf(t.rarity) >= 4) playAlert(false);
+    refreshTrades();
+    return;
+  }
+  if (msg.type === "opening") {
+    const e = msg.entry;
+    const isAlert = e.golden || e.godPack || (e.cards || []).some((c) => ORDER.indexOf(c.rarity) >= 4);
+    const isTop = e.godPack || (e.cards || []).some((c) => ORDER.indexOf(c.rarity) >= 4);
+    if (isAlert && config?.soundOnRare !== false) {
+      if (isTop) playAlert(!!e.godPack);
+      toast(`★ ${e.golden ? "Carte dorée" : e.godPack ? "PACK DIVIN" : "Carte rare"} obtenue !`);
+    }
+    refreshHistory();
+  }
+};
+
+let dupData = null;
+let dupSort = { key: "value", dir: -1 };
+
+function switchTab(name) {
+  const isDup = name === "dup";
+  const isTrade = name === "trade";
+  $("viewOpen").style.display = isDup || isTrade ? "none" : "";
+  $("viewDup").style.display = isDup ? "" : "none";
+  $("viewTrade").style.display = isTrade ? "" : "none";
+  $("tabOpen").classList.toggle("on", !isDup && !isTrade);
+  $("tabDup").classList.toggle("on", isDup);
+  $("tabTrade").classList.toggle("on", isTrade);
+  if (isDup && !dupData) loadDuplicates();
+  if (isTrade) refreshTrades();
+}
+
+$("tabOpen").addEventListener("click", () => switchTab("open"));
+$("tabDup").addEventListener("click", () => switchTab("dup"));
+$("tabTrade").addEventListener("click", () => switchTab("trade"));
+$("dupRefresh").addEventListener("click", () => loadDuplicates(true));
+$("dupQ").addEventListener("input", renderDup);
+$("dupRarity").addEventListener("change", renderDup);
+$("dupSellable").addEventListener("change", renderDup);
+
+async function loadDuplicates(refresh = false) {
+  $("dupTable").innerHTML = '<div class="empty">Analyse du marché en cours (peut prendre ~20 s)…</div>';
+  try {
+    const r = await fetch(`/api/duplicates${refresh ? "?refresh=1" : ""}`);
+    dupData = await r.json();
+    if (dupData.error) throw new Error(dupData.error);
+    $("dupAt").textContent = `marché analysé à ${new Date(dupData.at).toLocaleTimeString("fr-FR")}`;
+    renderDup();
+  } catch (e) {
+    $("dupTable").innerHTML = `<div class="empty">Impossible d'analyser la collection: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderDup() {
+  if (!dupData?.rows) return;
+  const s = dupData.summary || {};
+  $("dupStats").innerHTML = [
+    ["Doublons", s.characters ?? 0],
+    ["Cartes en trop", s.extras ?? 0],
+    ["Vendables", s.sellable ?? 0],
+    ["Potentiel ⚡", s.potential ?? 0],
+  ]
+    .map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`)
+    .join("");
+
+  const q = $("dupQ").value.trim().toLowerCase();
+  const rar = $("dupRarity").value;
+  const onlySell = $("dupSellable").checked;
+
+  let rows = dupData.rows.filter((r) => {
+    if (rar !== "ALL" && r.rarity !== rar) return false;
+    if (onlySell && r.state !== "vendable") return false;
+    if (!q) return true;
+    return `${r.name} ${r.native} ${r.series}`.toLowerCase().includes(q);
+  });
+
+  const val = (r) => (r.advice || 0) * (r.extras || 0);
+  const getters = {
+    name: (r) => r.name.toLowerCase(),
+    qty: (r) => r.qty,
+    value: val,
+    advice: (r) => r.advice || 0,
+    sales: (r) => r.sales7d || 0,
+    median: (r) => r.median7d || 0,
+    rarity: (r) => ORDER.indexOf(r.rarity),
+  };
+  const g = getters[dupSort.key] || val;
+  rows.sort((a, b) => (g(a) > g(b) ? 1 : g(a) < g(b) ? -1 : 0) * dupSort.dir);
+
+  const th = (key, label) =>
+    `<th data-k="${key}">${label}${dupSort.key === key ? (dupSort.dir === -1 ? " ↓" : " ↑") : ""}</th>`;
+
+  if (!rows.length) {
+    $("dupTable").innerHTML = '<div class="empty">Aucun doublon ne correspond.</div>';
+    return;
+  }
+
+  $("dupTable").innerHTML = `<table class="dup">
+    <thead><tr>
+      ${th("name", "Personnage")}
+      ${th("rarity", "Rareté")}
+      ${th("qty", "Possédé")}
+      <th>En trop</th>
+      ${th("median", "Médiane 7j")}
+      <th>Dernière vente</th>
+      <th>Plus basse annonce</th>
+      ${th("advice", "Prix conseillé")}
+      <th>Prix rapide</th>
+      ${th("sales", "Ventes 7j")}
+      ${th("value", "Potentiel")}
+      <th>État</th>
+      <th>Vente</th>
+    </tr></thead>
+    <tbody>
+      ${rows
+        .map((r) => {
+          const [label, color] = RARITY[r.rarity] || [r.rarity, "#888"];
+          const tagCls = r.state === "vendable" ? "ok" : r.state === "déjà en vente" ? "warn" : "no";
+          const canSell = r.state === "vendable" && r.advice != null;
+          return `<tr>
+            <td><div class="who">
+              <img src="${escapeHtml(r.image)}" loading="lazy" onerror="this.style.visibility='hidden'" />
+              <div><div class="n">${escapeHtml(r.name)}</div><div class="s">${escapeHtml(r.series)}</div></div>
+            </div></td>
+            <td><span class="chip" style="background:${color}">${label}</span></td>
+            <td>×${r.qty}</td>
+            <td>×${r.extras}</td>
+            <td>${r.median7d ?? "—"} ⚡</td>
+            <td>${r.lastPrice != null ? `${r.lastPrice} ⚡` : "—"}<div class="sub2">${r.lastAt ? new Date(r.lastAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</div></td>
+            <td>${r.lowestAsk != null ? `${r.lowestAsk} ⚡ <span class="sub2">(${r.listings} annonce${r.listings > 1 ? "s" : ""})</span>` : '<span class="sub2">aucune</span>'}</td>
+            <td><div class="sug"><span class="price">${r.advice ?? "—"} ⚡</span></div><div class="sub2">${escapeHtml(r.logic)}</div></td>
+            <td>${r.quick != null ? `${r.quick} ⚡` : "—"}<div class="sub2">vend vite</div></td>
+            <td>${r.sales7d ?? 0}${r.saturated ? '<div class="sub2" style="color:#fa6">marché saturé</div>' : ""}</td>
+            <td class="price">${val(r)} ⚡</td>
+            <td><span class="tag ${tagCls}">${escapeHtml(r.state)}</span></td>
+            <td>
+              ${canSell
+                ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="ghost" style="padding:5px 10px;font-size:12px" data-sell="${escapeHtml(r.characterId)}" data-price="${r.advice}">Vendre ${r.advice} ⚡</button>
+                    ${r.quick != null && r.quick !== r.advice
+                      ? `<button class="ghost" style="padding:5px 10px;font-size:12px;opacity:.75" data-sell="${escapeHtml(r.characterId)}" data-price="${r.quick}">Vite ${r.quick} ⚡</button>`
+                      : ""}
+                  </div>`
+                : '<span class="sub2">—</span>'}
+            </td>
+          </tr>`;
+        })
+        .join("")}
+    </tbody>
+  </table>`;
+
+  $("dupTable").querySelectorAll("th[data-k]").forEach((el) =>
+    el.addEventListener("click", () => {
+      const k = el.dataset.k;
+      if (dupSort.key === k) dupSort.dir *= -1;
+      else dupSort = { key: k, dir: -1 };
+      renderDup();
+    }),
+  );
+
+  $("dupTable").querySelectorAll("button[data-sell]").forEach((btn) =>
+    btn.addEventListener("click", () => sellRow(btn.dataset.sell, Number(btn.dataset.price), btn)),
+  );
+}
+
+async function sellRow(characterId, price, btn) {
+  const row = dupData?.rows?.find((r) => Number(r.characterId) === Number(characterId));
+  if (!row) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Vente…";
+  }
+  try {
+    const r = await fetch("/api/sell", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        characterId,
+        price,
+        rarity: row.rarity,
+        name: row.name,
+        type: config?.saleType || "fixed",
+        durationHours: Number(config?.saleDurationHours) || 12,
+      }),
+    });
+    const out = await r.json();
+    if (out.error) {
+      toast(`Vente refusée: ${out.message || out.error}`);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = `Vendre ${price} ⚡`;
+      }
+      return;
+    }
+    toast(`✔ ${row.name} mis en vente à ${out.price} ⚡ (${out.type === "auction" ? "enchère" : "vente directe"} ${out.durationHours} h)`);
+    row.state = "déjà en vente";
+    renderDup();
+  } catch (e) {
+    toast(`Erreur: ${e.message}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = `Vendre ${price} ⚡`;
+    }
+  }
+}
+
+async function tickNext() {
+  if (!state?.nextFreeAt) {
+    $("next").textContent = "—";
+    return;
+  }
+  const ms = new Date(state.nextFreeAt).getTime() - Date.now();
+  if (ms <= 0) {
+    $("next").textContent = "dispo !";
+    return;
+  }
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  $("next").textContent = `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
+(async function init() {
+  state = await (await fetch("/api/state")).json();
+  applyConfig(state.config || (await (await fetch("/api/config")).json()));
+  renderState();
+  await refreshHistory();
+  await refreshBatches();
+  await refreshTrades();
+  setInterval(tickNext, 1000);
+  tickNext();
+  setInterval(refreshHistory, 30000);
+  setInterval(refreshTrades, 30000);
+})();
+</script>
+</body>
+</html>
