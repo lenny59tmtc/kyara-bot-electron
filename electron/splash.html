@@ -4,18 +4,18 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data: file:"
     />
     <title>Kyara Bot</title>
     <style>
       :root {
-        --bg: #0e0c12;
-        --panel: #17131f;
-        --line: #2a2233;
-        --txt: #f2eef7;
-        --dim: #9a91a8;
-        --accent: #a855f7;
-        --accent2: #22d3ee;
+        --bg: #100a0f;
+        --panel: #1a1017;
+        --line: #35223a;
+        --txt: #f7eef5;
+        --dim: #c9a8bc;
+        --accent: #f45a9f;
+        --accent2: #ffc6e2;
       }
       * {
         box-sizing: border-box;
@@ -36,8 +36,8 @@
         gap: 14px;
         padding: 28px;
         background:
-          radial-gradient(600px 280px at 50% -60px, rgba(168, 85, 247, 0.32), transparent 70%),
-          radial-gradient(420px 220px at 100% 120%, rgba(34, 211, 238, 0.16), transparent 70%),
+          radial-gradient(620px 300px at 50% -70px, rgba(244, 90, 159, 0.34), transparent 70%),
+          radial-gradient(420px 220px at 100% 120%, rgba(255, 198, 226, 0.14), transparent 70%),
           var(--bg);
         color: var(--txt);
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -46,19 +46,19 @@
         -webkit-app-region: drag;
       }
       .logo {
-        width: 64px;
-        height: 64px;
-        display: grid;
-        place-items: center;
-        font-size: 34px;
-        border-radius: 18px;
-        background: linear-gradient(145deg, #7c3aed, #22d3ee);
-        box-shadow: 0 10px 30px rgba(124, 58, 237, 0.45);
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+        box-shadow:
+          0 0 0 1px rgba(255, 234, 246, 0.14),
+          0 14px 38px rgba(244, 90, 159, 0.45);
+        object-fit: contain;
       }
       h1 {
-        font-size: 24px;
-        font-weight: 700;
-        letter-spacing: 0.3px;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        color: var(--txt);
       }
       h1 span {
         background: linear-gradient(90deg, var(--accent), var(--accent2));
@@ -87,7 +87,7 @@
         height: 100%;
         border-radius: inherit;
         background: linear-gradient(90deg, var(--accent), var(--accent2));
-        opacity: 0.5;
+        opacity: 0.55;
         transition: width 0.35s ease, opacity 0.35s ease;
         animation: pulse 1.6s ease-in-out infinite;
       }
@@ -105,12 +105,12 @@
         bottom: 12px;
         font-size: 11px;
         letter-spacing: 0.4px;
-        color: rgba(154, 145, 168, 0.6);
+        color: rgba(201, 168, 188, 0.65);
       }
     </style>
   </head>
   <body>
-    <div class="logo">⚡</div>
+    <img class="logo" src="../build/icon.png" alt="Kyara Bot" />
     <h1>Kyara <span>Bot</span></h1>
     <p id="status">Démarrage…</p>
     <div class="bar"><div class="fill" id="fill"></div></div>
@@ -121,7 +121,7 @@
         const fill = document.getElementById("fill");
         if (percent === null || typeof percent === "undefined") {
           fill.style.width = "35%";
-          fill.style.opacity = "0.5";
+          fill.style.opacity = "0.55";
         } else {
           fill.style.width = Math.max(2, Math.min(100, percent)) + "%";
           fill.style.opacity = "1";

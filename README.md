@@ -7,6 +7,18 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.1.0
+
+- **Mise à jour automatique** : vérification de la dernière Release GitHub au lancement puis toutes les 5 minutes ;
+  un bouton sticky « Mise à jour disponible » apparaît en bas à droite du tableau de bord.
+- **Connexion Discord obligatoire au premier démarrage** : les comptes invités créés automatiquement par le site
+  sont détectés, l'automatisation reste en pause et l'application ouvre la connexion Discord dans Chromium.
+- **Ouverture automatique commutable** : nouveau réglage pour activer ou désactiver les ouvertures de boosters.
+- **Échanges automatiques désactivés par défaut** et désactivation automatique lorsqu'aucun doublon n'est présent
+  sur le compte.
+- **Interface et écran de setup** aux couleurs du logo (palette rose) : icône de l'application dans le splash et
+  dans le programme d'installation (sidebar, en-tête, icônes, couleurs de texte).
+
 ---
 
 ## Sommaire
@@ -54,18 +66,29 @@ L'installateur n'est pas signé numériquement : Windows SmartScreen peut affich
    (~150 Mo) dans son dossier de données. Une connexion Internet est donc nécessaire la première fois.
 2. Le tableau de bord s'affiche dès que le serveur local est prêt.
 3. Le bot démarre automatiquement et ouvre une fenêtre Chromium sur `kyara.games`.
+4. Si le site crée automatiquement un **compte invité**, l'application le détecte : les automatismes restent en
+   pause et la fenêtre Chromium est amenée sur la **connexion Discord** (bouton « Se connecter » du tableau de bord
+   pour la relancer).
+5. Au lancement puis **toutes les 5 minutes**, l'application vérifie la dernière version publiée sur GitHub ;
+   un bouton sticky apparaît en bas à droite du tableau de bord lorsqu'une mise à jour est disponible.
 
 ### Se connecter à Kyara
 
-Tant que tu n'es pas connecté, le journal affiche un avertissement et la fenêtre Chromium reste ouverte :
-connecte-toi normalement (Discord) dans cette fenêtre. Dès que la session est détectée, le bot reprend
+Tant qu'aucun compte Discord n'est connecté, le journal affiche un avertissement et la fenêtre Chromium reste
+ouverte : termine la connexion Discord dans cette fenêtre (le bouton « Se connecter » du tableau de bord ouvre
+automatiquement le menu de connexion du site). Dès que la session est détectée, le bot reprend
 automatiquement (vérification toutes les 5 secondes). Le profil est conservé : tu n'auras à te reconnecter
 que si la session expire.
 
 ### Utilisation quotidienne
 
 - Le **tableau de bord** permet de démarrer/arrêter le bot, suivre les ouvertures, les échanges, les doublons
-  et les réglages (`Vérifier toutes les X secondes`, multi-ouvertures, échanges automatiques…).
+  et les réglages (`Vérifier toutes les X secondes`, ouverture automatique, multi-ouvertures, échanges…).
+- Le réglage **« Ouverture automatique des boosters »** permet de suspendre/relancer les ouvertures sans arrêter le bot.
+- Les **échanges automatiques sont désactivés par défaut** ; ils se désactivent aussi automatiquement si le compte
+  ne contient plus aucun doublon. Active-les depuis l'onglet **Échanges**.
+- Si une nouvelle version est publiée, un **bouton de mise à jour** sticky apparaît en bas à droite (vérification
+  toutes les 5 minutes) et ouvre la page de téléchargement.
 - Fermer la fenêtre **ne quitte pas** l'application : elle se réduit dans la zone de notification
   (icône ⚡) et le bot continue de tourner. Clic droit sur l'icône → **Quitter** pour tout arrêter.
 - Les réglages sont enregistrés dans `data/config.json`.
@@ -140,6 +163,9 @@ Autres commandes utiles :
 | `npm run dashboard` | Lance uniquement le serveur du tableau de bord |
 | `npm run dist` | Construit l'installateur **NSIS** et la version **portable** Windows dans `dist/` |
 | `npm run pack` | Construit une version non empaquetée (`dist/win-unpacked/`) pour tester vite |
+| `npm run icons` | Régénère `build/icon.png` depuis `build/KYARA BOT.svg` (Playwright) |
+| `npm run icons:ico` | Régénère `build/icon.ico` (Pillow requis) |
+| `npm run icons:nsis` | Régénère les visuels du programme d'installation (sidebar/en-tête, Pillow requis) |
 
 ---
 
@@ -151,12 +177,14 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.0.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.0.1.exe` — exécutable portable
+- `Kyara-Bot-Setup-1.1.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.1.0.exe` — exécutable portable
 
 L'icône de l'application est générée depuis `build/KYARA BOT.svg` : `npm run icons` rend le PNG
 (`build/icon.png`, 1024×1024 via Playwright/Chromium) puis `python build/make-ico.py` produit l'ICO
-multi-tailles (`build/icon.ico`, Pillow requis).
+multi-tailles (`build/icon.ico`, Pillow requis). Les visuels du **programme d'installation** (sidebar,
+en-tête, icônes et couleurs de texte) sont générés par `python build/make-nsis-assets.py` depuis
+`build/icon.png` et déclarés dans `build/installer.nsh`.
 
 > Pour publier directement sur GitHub : `GH_TOKEN=<ton token> npx electron-builder --win --publish always`
 > (voir aussi le workflow CI ci-dessous).
@@ -170,8 +198,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 ---
@@ -214,10 +242,11 @@ git push origin v1.0.1
 │  ├─ trades.js         # moteur d'échanges sur /marche?onglet=offres
 │  ├─ human.js          # clics « humanisés » (trajets souris, temporisations)
 │  ├─ market.js         # estimation des prix / doublons
+│  ├─ update.js         # vérification des Releases GitHub (lancement + toutes les 5 min)
 │  ├─ store.js          # historiques JSONL
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
 ├─ public/index.html    # interface du tableau de bord
-├─ build/               # KYARA BOT.svg + icônes générées (icon.png / icon.ico) + scripts de génération
+├─ build/               # KYARA BOT.svg + icônes générées + visuels du setup NSIS + scripts
 └─ package.json         # scripts, dépendances et configuration electron-builder
 ```
 

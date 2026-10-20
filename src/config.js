@@ -37,6 +37,7 @@ export const RARITY_COLORS = {
 const DEFAULTS = {
   pack: "all",
   openDaily: true,
+  autoOpen: true,
   pollSeconds: 45,
   port: 8787,
   soundOnRare: true,
@@ -44,7 +45,7 @@ const DEFAULTS = {
   batchMax: 8,
   saleType: "fixed",
   saleDurationHours: 12,
-  tradesAuto: true,
+  tradesAuto: false,
 };
 
 export const RECYCLE_MIN = { C: 1, U: 1, R: 3, E: 10, L: 40, M: 150 };

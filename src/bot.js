@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 import { execFile } from "node:child_process";
-import { PROFILE_DIR, loadConfig, RARITY_ORDER, RECYCLE_MIN } from "./config.js";
+import { PROFILE_DIR, loadConfig, saveConfig, RARITY_ORDER, RECYCLE_MIN } from "./config.js";
 import { appendOpening, appendBatch, buildBatchReport, isAlertRarity } from "./store.js";
 import { TradeWorker } from "./trades.js";
 import { humanClick } from "./human.js";
@@ -19,6 +19,8 @@ export class KyaraBot {
     this.pendingOpen = null;
     this.packs = [];
     this.opening = 0;
+    this.loginPrompted = false;
+    this.lastDupCheck = 0;
     this.trades = new TradeWorker(this);
     this.state = {
       running: false,
@@ -38,6 +40,13 @@ export class KyaraBot {
       lastOpen: null,
       lastError: null,
       authWarned: false,
+      version: null,
+      authenticated: false,
+      guest: false,
+      needsLogin: false,
+      discordUsername: null,
+      autoOpenPaused: false,
+      tradesAutoOffReason: null,
       log: [],
     };
   }
@@ -335,22 +344,50 @@ export class KyaraBot {
       let waitMs = this.config.pollSeconds * 1000;
       try {
         await this.ensureBrowser();
-        const me = await this.api("/me");
-        if (me?.error) throw new Error(`API /me: ${me.error}`);
-        this.applyMe(me);
-        this.state.authWarned = false;
-        if (!this.packs.length) {
-          try {
-            this.packs = await this.api("/packs");
-          } catch {}
-        }
 
-        const opened = await this.tick(me);
-        if (opened) {
-          waitMs = 4000;
-        } else if (me.nextFreeAt) {
-          const delta = new Date(me.nextFreeAt).getTime() - Date.now() + 20000;
-          waitMs = Math.min(Math.max(delta, 15000), this.config.pollSeconds * 1000);
+        // Pendant le login Discord, la fenêtre n'est plus sur kyara.games :
+        // on attend le retour sur le site sans la fermer.
+        const page = this.page;
+        if (page && !page.isClosed() && !page.url().startsWith(BASE)) {
+          this.state.needsLogin = true;
+          this.state.authenticated = false;
+          waitMs = 3000;
+        } else {
+          const me = await this.api("/me");
+          if (me?.error) throw new Error(`API /me: ${me.error}`);
+          this.applyMe(me);
+          this.state.authWarned = false;
+
+          if (!this.state.authenticated) {
+            // Compte invité créé automatiquement par le site : jamais d'automatisation dessus.
+            this.state.needsLogin = true;
+            if (!this.loginPrompted) {
+              this.loginPrompted = true;
+              this.log(
+                "warn",
+                `Compte invité détecté (${this.state.pseudo || "invité"}) — connexion Discord requise dans la fenêtre Chromium ; les automatismes sont en pause`,
+              );
+              this.openLogin().catch(() => {});
+            }
+            waitMs = 5000;
+          } else {
+            this.loginPrompted = false;
+            this.state.needsLogin = false;
+            if (!this.packs.length) {
+              try {
+                this.packs = await this.api("/packs");
+              } catch {}
+            }
+
+            const opened = await this.tick(me);
+            if (opened) {
+              waitMs = 4000;
+            } else if (me.nextFreeAt) {
+              const delta = new Date(me.nextFreeAt).getTime() - Date.now() + 20000;
+              waitMs = Math.min(Math.max(delta, 15000), this.config.pollSeconds * 1000);
+            }
+            await this.maybeDisableTrades();
+          }
         }
       } catch (e) {
         const msg = e?.message || String(e);
@@ -358,13 +395,17 @@ export class KyaraBot {
           this.state.lastError = msg;
           this.log("error", msg);
         }
-        if (msg === "API /me: no_token") {
-          // Pas connecté : on garde la fenêtre Chromium ouverte pour laisser l'utilisateur se connecter.
-          if (!this.state.authWarned) {
-            this.state.authWarned = true;
-            this.log("warn", "Non connecté — connecte-toi à kyara.games dans la fenêtre Chromium ouverte, le bot reprendra automatiquement");
+        const onOauthPage = this.page && !this.page.isClosed() && !this.page.url().startsWith(BASE);
+        if (msg === "API /me: no_token" || onOauthPage) {
+          // Pas connecté / OAuth en cours : on garde la fenêtre ouverte.
+          this.state.needsLogin = true;
+          this.state.authenticated = false;
+          if (!onOauthPage && !this.loginPrompted) {
+            this.loginPrompted = true;
+            this.log("warn", "Connexion requise — connecte-toi avec Discord dans la fenêtre Chromium ouverte, le bot reprendra automatiquement");
+            this.openLogin().catch(() => {});
           }
-          waitMs = 5000;
+          waitMs = 3000;
         } else {
           try {
             await this.page?.close();
@@ -379,6 +420,51 @@ export class KyaraBot {
     }
   }
 
+  async openLogin() {
+    await this.ensureBrowser();
+    const page = this.page;
+    if (!page || page.isClosed()) return false;
+    try {
+      await page.bringToFront();
+    } catch {}
+    try {
+      if (!page.url().startsWith(BASE)) {
+        await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
+        await page.waitForTimeout(1000);
+      }
+      const trigger = page.locator('button[aria-label^="Profil de"]').first();
+      if (await trigger.count().catch(() => 0)) {
+        await trigger.click({ timeout: 4000, force: true }).catch(() => {});
+        await page.waitForTimeout(500);
+        const discordBtn = page.locator("button", { hasText: /Se connecter avec Discord/i }).first();
+        if (await discordBtn.count().catch(() => 0)) {
+          await discordBtn.click({ timeout: 4000, force: true }).catch(() => {});
+        }
+      }
+    } catch {}
+    return true;
+  }
+
+  async maybeDisableTrades() {
+    if (this.config.tradesAuto !== true) return;
+    const now = Date.now();
+    if (now - this.lastDupCheck < 5 * 60 * 1000) return;
+    this.lastDupCheck = now;
+    try {
+      const collection = await this.api("/me/collection?lean=1");
+      if (!Array.isArray(collection)) return;
+      const duplicates = collection.filter((item) => Number(item.qty) > 1);
+      if (duplicates.length > 0) {
+        this.state.tradesAutoOffReason = null;
+        return;
+      }
+      this.config = saveConfig({ tradesAuto: false });
+      this.state.tradesAutoOffReason = "aucun doublon";
+      this.log("info", "Échanges automatiques désactivés : aucun doublon présent sur le compte");
+      bus.emit("state", this.snapshot());
+    } catch {}
+  }
+
   applyMe(me) {
     this.state.pseudo = me.pseudo ?? this.state.pseudo;
     this.state.avatar = me.discord?.avatar ?? this.state.avatar;
@@ -387,9 +473,21 @@ export class KyaraBot {
     this.state.freePacksMax = me.freePacksMax;
     this.state.nextFreeAt = me.nextFreeAt;
     this.state.boostersOpened = me.boostersOpened;
+    this.state.discordUsername = me.discord?.username ?? null;
+    this.state.guest = !me.discord;
+    this.state.authenticated = Boolean(me.discord);
   }
 
   async tick(me) {
+    if (!this.state.authenticated) return false;
+    if (this.config.autoOpen === false) {
+      if (!this.state.autoOpenPaused) {
+        this.state.autoOpenPaused = true;
+        this.log("info", "Ouverture automatique désactivée — aucune ouverture de booster ne sera lancée");
+      }
+      return false;
+    }
+    if (this.state.autoOpenPaused) this.state.autoOpenPaused = false;
     let opened = false;
     const batchMin = Math.max(2, this.config.batchMin || 6);
 

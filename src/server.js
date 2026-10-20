@@ -4,6 +4,7 @@ import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats } from "./store.js";
 import { getDuplicates, clearMarketCache } from "./market.js";
+import { getUpdateState } from "./update.js";
 import { bus } from "./bus.js";
 
 const MIME = {
@@ -29,6 +30,17 @@ export function createServer(bot) {
 
     if (url.pathname === "/api/state") {
       return json(res, bot.snapshot());
+    }
+    if (url.pathname === "/api/update") {
+      return json(res, getUpdateState());
+    }
+    if (url.pathname === "/api/login" && req.method === "POST") {
+      try {
+        const ok = await bot.openLogin();
+        return json(res, { ok: Boolean(ok) });
+      } catch (e) {
+        return json(res, { ok: false, error: e?.message || String(e) });
+      }
     }
     if (url.pathname === "/api/history") {
       const limit = Number(url.searchParams.get("limit")) || 100;
@@ -90,12 +102,14 @@ export function createServer(bot) {
       if (body.saleType === "fixed" || body.saleType === "auction") patch.saleType = body.saleType;
       if ([12, 24, 48].includes(Number(body.saleDurationHours))) patch.saleDurationHours = Number(body.saleDurationHours);
       if (typeof body.tradesAuto === "boolean") patch.tradesAuto = body.tradesAuto;
+      if (typeof body.autoOpen === "boolean") patch.autoOpen = body.autoOpen;
       if (patch.batchMin && !patch.batchMax) {
         const cur = loadConfig();
         if (cur.batchMax < patch.batchMin) patch.batchMax = patch.batchMin;
       }
       bot.config = saveConfig(patch);
       bot.state.pack = bot.config.pack;
+      if (patch.tradesAuto === true) bot.lastDupCheck = 0;
       bus.emit("state", bot.snapshot());
       return json(res, bot.config);
     }

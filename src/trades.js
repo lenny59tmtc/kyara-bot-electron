@@ -108,6 +108,13 @@ export class TradeWorker {
           if (!(await this.idle(4000))) break;
           continue;
         }
+        if (!this.bot.state?.authenticated) {
+          // Compte invité / non connecté : le moteur d'échanges reste en pause.
+          this.state.filters = { missing: false, dupes: false };
+          this.state.candidates = 0;
+          if (!(await this.idle(4000))) break;
+          continue;
+        }
         if (await this.waitWhileOpening()) break;
         await this.cycle();
         if (Math.random() < 0.12) wait += jit(900, 2600);

@@ -132,11 +132,70 @@
     position: fixed; right: 20px; bottom: 20px; background: var(--acc); color: #fff;
     padding: 12px 18px; border-radius: 12px; font-weight: 700; display: none; z-index: 20;
   }
+  /* --- Identité Kyara Bot : palette rose du logo --- */
+  :root {
+    --bg: #100a0f;
+    --panel: #1a1017;
+    --panel2: #22141d;
+    --line: #35223a;
+    --txt: #f7eef5;
+    --dim: #a995a5;
+    --acc: #f45a9f;
+    --acc2: #ff8cc6;
+    --gold: #f0b8cf;
+  }
+  header { background: linear-gradient(180deg, #1c101a, #130a10); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-ico { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 1px var(--line), 0 6px 18px rgba(244, 90, 159, .35); }
+  button { background: linear-gradient(135deg, var(--acc), #b62d6d); }
+  .pill.ver { color: var(--acc2); font-variant-numeric: tabular-nums; }
+  .dot.warn { background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+  .login-banner {
+    display: flex; align-items: center; gap: 14px; margin: 14px 22px 0; padding: 14px 18px;
+    border-radius: 14px; border: 1px solid rgba(244, 90, 159, .45);
+    background: linear-gradient(135deg, rgba(244, 90, 159, .16), rgba(255, 140, 198, .06));
+  }
+  .login-banner[hidden] { display: none; }
+  .login-banner img { width: 42px; height: 42px; border-radius: 10px; }
+  .login-banner .lb-txt { flex: 1; min-width: 0; }
+  .login-banner .lb-title { font-weight: 800; font-size: 14px; }
+  .login-banner .lb-sub { color: var(--dim); font-size: 12.5px; }
+  .login-banner button { flex: none; }
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 13px; color: var(--txt); border: 1px solid var(--line);
+    background: var(--panel2); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch .slider {
+    position: absolute; inset: 0; background: #3a2535; border-radius: 999px;
+    transition: .18s; border: 1px solid var(--line);
+  }
+  .switch .slider::before {
+    content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px;
+    background: #cbb6c6; border-radius: 50%; transition: .18s;
+  }
+  .switch input:checked + .slider { background: linear-gradient(135deg, var(--acc), #b62d6d); border-color: transparent; }
+  .switch input:checked + .slider::before { transform: translateX(18px); background: #fff; }
+  .update-btn {
+    position: fixed; right: 20px; bottom: 20px; z-index: 30; display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; border-radius: 14px; color: #fff; text-decoration: none; font-weight: 800;
+    font-size: 13.5px; background: linear-gradient(135deg, #f45a9f, #b62d6d);
+    box-shadow: 0 10px 30px rgba(244, 90, 159, .45); border: 1px solid rgba(255, 255, 255, .18); cursor: pointer;
+  }
+  .update-btn[hidden] { display: none; }
+  .update-btn .ub-icon {
+    display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(255, 255, 255, .22); font-size: 14px;
+  }
+  #toast { bottom: 92px; }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">キ <span>Kyara</span> Bot</div>
+  <div class="brand"><img class="brand-ico" src="/icon.png" alt="Kyara Bot" /> <span>Kyara</span> Bot</div>
+  <div class="pill ver">v<b id="ver">—</b></div>
   <div class="pill"><span class="dot" id="dot"></span><span id="status">démarrage…</span></div>
   <div class="pill" id="user">—</div>
   <div class="pill">Boosters gratuits: <b id="free">—</b></div>
@@ -151,6 +210,15 @@
   </nav>
   <button id="toggle">Arrêter</button>
 </header>
+
+<div class="login-banner" id="loginBanner" hidden>
+  <img src="/icon.png" alt="" />
+  <div class="lb-txt">
+    <div class="lb-title">Connexion à Kyara requise</div>
+    <div class="lb-sub" id="loginHint">Compte invité détecté. Connecte-toi avec Discord dans la fenêtre Chromium pour activer les automatismes.</div>
+  </div>
+  <button id="loginBtn">Se connecter</button>
+</div>
 
 <main id="viewOpen">
   <section>
@@ -184,6 +252,10 @@
             <option value="season-2026-fall">Automne 2026</option>
           </select>
         </label>
+        <label class="switch-row">
+          <span>Ouverture automatique des boosters</span>
+          <span class="switch"><input type="checkbox" id="autoOpen" /><span class="slider"></span></span>
+        </label>
         <label>Vérifier toutes les X secondes
           <input type="number" id="poll" min="15" max="600" step="5" />
         </label>
@@ -195,11 +267,15 @@
             <span>boosters</span>
           </div>
         </label>
-        <div class="row">
-          <label class="row"><input type="checkbox" id="daily" /> Pack du jour</label>
-          <label class="row"><input type="checkbox" id="sound" /> Son sur rare</label>
-          <button class="ghost" id="testSound">Tester le son</button>
-        </div>
+        <label class="switch-row">
+          <span>Pack du jour</span>
+          <span class="switch"><input type="checkbox" id="daily" /><span class="slider"></span></span>
+        </label>
+        <label class="switch-row">
+          <span>Son sur rare</span>
+          <span class="switch"><input type="checkbox" id="sound" /><span class="slider"></span></span>
+        </label>
+        <button class="ghost" id="testSound">Tester le son</button>
         <label>Vente des doublons
           <div class="row">
             <select id="saleType">
@@ -279,12 +355,14 @@
     <div class="panel" style="margin-bottom:18px">
       <h2>Réglages des échanges</h2>
       <div class="cfg">
-        <label class="row"><input type="checkbox" id="tradesAuto" /> Échanges automatiques activés</label>
+        <label class="switch-row">
+          <span>Échanges automatiques activés</span>
+          <span class="switch"><input type="checkbox" id="tradesAuto" /><span class="slider"></span></span>
+        </label>
         <p class="sub2" style="margin:0">
-          Va chercher les annonces de l'onglet <b>Échanges</b> du marché avec les filtres
-          <b>« Que je n'ai pas »</b> et <b>« Contre mes doublons »</b> (vérifiés à chaque cycle),
-          toutes les 8 à 12 s en aléatoire, puis valide instantanément les échanges disponibles.
-          En pause pendant les ouvertures de boosters.
+          Désactivés par défaut. Le moteur va chercher les annonces de l'onglet <b>Échanges</b> du marché
+          avec les filtres <b>« Que je n'ai pas »</b> et <b>« Contre mes doublons »</b>, puis valide les échanges.
+          Il se désactive automatiquement si le compte ne contient aucun doublon.
         </p>
         <div class="row"><button class="ghost" id="tradeSave">Enregistrer</button></div>
       </div>
@@ -296,6 +374,7 @@
   </aside>
 </main>
 
+<a id="updateBtn" class="update-btn" hidden></a>
 <div id="toast"></div>
 
 <script>
@@ -310,6 +389,7 @@ const RARITY = {
 const ORDER = ["C", "U", "R", "E", "L", "M"];
 let state = null;
 let config = null;
+let updateInfo = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -345,14 +425,70 @@ function playAlert(god = false) {
   } catch {}
 }
 
+async function refreshUpdate() {
+  try {
+    updateInfo = await (await fetch("/api/update")).json();
+  } catch {
+    return;
+  }
+  renderUpdate();
+}
+
+function renderUpdate() {
+  const btn = $("updateBtn");
+  if (!btn) return;
+  if (updateInfo?.currentVersion) $("ver").textContent = updateInfo.currentVersion;
+  const available = updateInfo?.updateAvailable === true;
+  btn.hidden = !available;
+  if (!available) return;
+  const target = updateInfo.downloadUrl || updateInfo.releaseUrl || "";
+  btn.innerHTML = `<span class="ub-icon">↑</span><span>Mise à jour <b>v${escapeHtml(updateInfo.latestVersion || "?")}</b> disponible</span>`;
+  btn.onclick = (event) => {
+    event.preventDefault();
+    if (target) window.open(target, "_blank");
+  };
+}
+
+async function requestLogin() {
+  const btn = $("loginBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Ouverture…";
+  }
+  try {
+    await fetch("/api/login", { method: "POST" });
+    toast("Fenêtre Chromium ouverte — termine la connexion avec Discord");
+  } catch {}
+  setTimeout(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+    }
+  }, 2000);
+}
+
+$("loginBtn").addEventListener("click", requestLogin);
+
 function renderState() {
   if (!state) return;
+  const needsLogin = state.needsLogin === true;
   const dot = $("dot");
-  dot.className = "dot" + (state.running ? " on" : state.lastError ? " err" : "");
-  $("status").textContent = state.running ? "en marche" : "arrêté";
-  $("user").innerHTML = state.pseudo
-    ? `<img src="${state.avatar || ""}" style="width:18px;height:18px;border-radius:50%;vertical-align:-4px" onerror="this.remove()" /> <b>${state.pseudo}</b> · ⚡ ${state.chakra ?? "—"}`
-    : "non connecté";
+  dot.className = "dot" + (needsLogin ? " warn" : state.running ? " on" : state.lastError ? " err" : "");
+  $("status").textContent = needsLogin ? "connexion requise" : state.running ? "en marche" : "arrêté";
+  if (needsLogin) {
+    $("user").innerHTML = "<b>Compte invité</b> · connexion Discord requise";
+  } else {
+    $("user").innerHTML = state.pseudo
+      ? `<img src="${state.avatar || ""}" style="width:18px;height:18px;border-radius:50%;vertical-align:-4px" onerror="this.remove()" /> <b>${state.pseudo}</b> · ⚡ ${state.chakra ?? "—"}`
+      : "non connecté";
+  }
+  $("ver").textContent = state.version || updateInfo?.currentVersion || "—";
+  $("loginBanner").hidden = !needsLogin;
+  if (needsLogin) {
+    $("loginHint").textContent = state.pseudo
+      ? `Compte invité détecté (${state.pseudo}). Connecte-toi avec Discord dans la fenêtre Chromium pour activer les automatismes.`
+      : "Connecte-toi avec Discord dans la fenêtre Chromium pour activer les automatismes.";
+  }
   $("free").textContent = state.freePacks ?? "—";
   $("toggle").textContent = state.running ? "Arrêter" : "Démarrer";
   const bp = $("batchPill");
@@ -576,12 +712,13 @@ function applyConfig(c) {
   $("pack").value = c.pack;
   $("poll").value = c.pollSeconds;
   $("daily").checked = !!c.openDaily;
+  $("autoOpen").checked = c.autoOpen !== false;
   $("sound").checked = !!c.soundOnRare;
   $("batchMin").value = c.batchMin ?? 6;
   $("batchMax").value = c.batchMax ?? 8;
   $("saleType").value = c.saleType || "fixed";
   $("saleDuration").value = String(c.saleDurationHours ?? 12);
-  $("tradesAuto").checked = c.tradesAuto !== false;
+  $("tradesAuto").checked = c.tradesAuto === true;
 }
 
 $("toggle").addEventListener("click", async () => {
@@ -602,6 +739,7 @@ $("save").addEventListener("click", async () => {
       pack: $("pack").value,
       pollSeconds: Number($("poll").value) || 45,
       openDaily: $("daily").checked,
+      autoOpen: $("autoOpen").checked,
       soundOnRare: $("sound").checked,
       batchMin: Number($("batchMin").value) || 6,
       batchMax: Number($("batchMax").value) || 8,
@@ -875,6 +1013,7 @@ async function tickNext() {
   state = await (await fetch("/api/state")).json();
   applyConfig(state.config || (await (await fetch("/api/config")).json()));
   renderState();
+  await refreshUpdate();
   await refreshHistory();
   await refreshBatches();
   await refreshTrades();
@@ -882,6 +1021,7 @@ async function tickNext() {
   tickNext();
   setInterval(refreshHistory, 30000);
   setInterval(refreshTrades, 30000);
+  setInterval(refreshUpdate, 60000);
 })();
 </script>
 </body>

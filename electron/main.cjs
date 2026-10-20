@@ -244,6 +244,7 @@ function serverEnv(port) {
     ELECTRON_RUN_AS_NODE: "1",
     KYARA_HOME: homeDir(),
     PORT: String(port),
+    APP_VERSION: app.getVersion(),
   };
   // En développement on garde le cache Playwright global du développeur.
   if (!DEV) {
@@ -559,6 +560,7 @@ function buildMenu() {
       label: "Aide",
       submenu: [
         { label: "Dépôt GitHub", click: () => shell.openExternal(REPO_URL) },
+        { label: "Mises à jour", click: () => shell.openExternal(`${REPO_URL}/releases`) },
         {
           label: "À propos",
           click: () =>
