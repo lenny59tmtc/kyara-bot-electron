@@ -28,3 +28,8 @@ desktop.ini
 
 # Ancienne page locale remplacÃ©e par public/historique.html
 /historique.html
+
+# Secrets de signature (certificat privé) — ne jamais committer
+.secrets/
+*.pfx
+

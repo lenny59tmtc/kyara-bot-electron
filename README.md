@@ -7,6 +7,14 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.2.0
+
+- **Exécutables signés** : application, installateur et version portable embarquent une signature Authenticode
+  (chaîne « Kyara Bot Root CA » → certificat « Kyara Bot ») et une **licence EULA** affichée par l'installateur.
+- **Version courante affichée en pied de page** du tableau de bord, avec le statut des mises à jour.
+- Certificats publics fournis (`build/kyara-bot-root-ca.cer` et `build/kyara-bot-codesign.cer`) +
+  script d'installation pour faire confiance à l'éditeur sur un PC.
+
 ## Nouveautés de la version 1.1.0
 
 - **Mise à jour automatique** : vérification de la dernière Release GitHub au lancement puis toutes les 5 minutes ;
@@ -26,6 +34,7 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 - [Téléchargement](#téléchargement)
 - [Installation (utilisateur final)](#installation-utilisateur-final)
 - [Premier démarrage et connexion](#premier-démarrage-et-connexion)
+- [Signature Windows et Defender](#signature-windows-et-defender)
 - [Où sont stockées les données](#où-sont-stockées-les-données)
 - [Menu et barre de notification](#menu-et-barre-de-notification)
 - [Installation depuis les sources](#installation-depuis-les-sources)
@@ -46,8 +55,9 @@ Les binaires sont publiés dans **[Releases](https://github.com/lenny59tmtc/kyar
 | `Kyara-Bot-Setup-<version>.exe` | Installateur Windows (installation par utilisateur, sans droits admin) |
 | `Kyara-Bot-Portable-<version>.exe` | Version portable Windows (aucune installation) |
 
-L'installateur n'est pas signé numériquement : Windows SmartScreen peut afficher un avertissement
-(« Informations complémentaires » → « Exécuter quand même »). C'est normal pour un projet personnel.
+L'installateur et les exécutables sont **signés numériquement** avec le certificat Kyara Bot (auto-signé) :
+Windows identifie l'éditeur « Kyara Bot ». Sur un PC qui ne connaît pas encore ce certificat, SmartScreen
+peut encore afficher un avertissement — voir [Signature Windows et Defender](#signature-windows-et-defender).
 
 ---
 
@@ -92,6 +102,38 @@ que si la session expire.
 - Fermer la fenêtre **ne quitte pas** l'application : elle se réduit dans la zone de notification
   (icône ⚡) et le bot continue de tourner. Clic droit sur l'icône → **Quitter** pour tout arrêter.
 - Les réglages sont enregistrés dans `data/config.json`.
+- La **version courante** est affichée en pied de page, avec l'état de la vérification des mises à jour.
+
+---
+
+## Signature Windows et Defender
+
+Les binaires Windows sont signés (Authenticode) avec la chaîne **Kyara Bot Root CA → Kyara Bot**
+(`CN=Kyara Bot, O=Kyara Bot, C=FR`) : `Kyara Bot.exe`, l'installateur et la version portable.
+La signature est horodatée lorsque le serveur de timestamp est joignable.
+
+Pour que Windows identifie l'éditeur sur un PC :
+
+1. Télécharge `kyara-bot-root-ca.cer` et `kyara-bot-codesign.cer` depuis la Release (ou depuis `build/`).
+2. Clic droit sur `kyara-bot-root-ca.cer` → **Installer le certificat** → **Utilisateur actuel** →
+   **Placer tous les certificats dans le magasin suivant** → **Autorités de certification racines de confiance**.
+3. Clique droit sur `kyara-bot-codesign.cer` → même assistant → **Éditeurs approuvés**.
+4. Ou lance le script fourni (magasin utilisateur, sans administrateur ; `-Machine` pour tous les utilisateurs) :
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\install-code-signing-cert.ps1
+   ```
+
+**Limites importantes** : le certificat est **auto-signé**. Il atteste de l'éditeur mais ne remplace pas une
+signature **EV/OV** délivrée par une autorité reconnue : SmartScreen peut donc encore afficher un avertissement
+tant que le binaire n'a pas acquis de réputation. Si Windows Defender bloque le fichier :
+
+- clic droit sur l'exe → Propriétés → cocher **Débloquer** ;
+- Windows → Sécurité → Protection contre les virus → **Exclusions** → ajouter le dossier d'installation ou de données ;
+- signaler le faux positif à Microsoft ([aka.ms/wdsi](https://www.microsoft.com/en-us/wdsi/filesubmission)).
+
+Les développeurs peuvent signer une build locale via les variables `CSC_LINK` (chemin du `.pfx`) et
+`CSC_KEY_PASSWORD` avant `npm run dist` ; le certificat privé est stocké dans `.secrets/` (ignoré par Git).
 
 ---
 
@@ -177,8 +219,8 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.1.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.1.0.exe` — exécutable portable
+- `Kyara-Bot-Setup-1.2.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.2.0.exe` — exécutable portable
 
 L'icône de l'application est générée depuis `build/KYARA BOT.svg` : `npm run icons` rend le PNG
 (`build/icon.png`, 1024×1024 via Playwright/Chromium) puis `python build/make-ico.py` produit l'ICO
@@ -198,8 +240,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 ---
@@ -221,8 +263,8 @@ git push origin v1.1.0
 | Electron ne démarre pas après `npm install` | Le binaire n'a pas été téléchargé : `node node_modules/electron/install.js` |
 | Le téléchargement de Chromium échoue | Vérifie la connexion/proxy, puis menu **Bot → Réinstaller le navigateur Chromium** (ou `npx playwright install chromium` en dev) |
 | Le bot reste « non connecté » | Connecte-toi dans la fenêtre Chromium ouverte sur kyara.games (le bot reprend ensuite tout seul) |
-| SmartScreen bloque l'installateur | « Informations complémentaires » → « Exécuter quand même » (binaire non signé) |
-| Antivirus signale l'application | Ajoute une exclusion pour le dossier d'installation et le dossier de données |
+| SmartScreen bloque l'installateur | Le binaire est signé mais le certificat est auto-signé : installe `build/kyara-bot-codesign.cer` (voir [Signature Windows et Defender](#signature-windows-et-defender)) ou « Informations complémentaires » → « Exécuter quand même » |
+| Defender bloque l'application | Propriétés du fichier → **Débloquer** ; ajoute une exclusion pour le dossier d'installation ou signale le faux positif à Microsoft |
 | Linux : l'app ne se lance pas | Installe les dépendances Chromium : `sudo apt install libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2` |
 | Filtres d'échanges instables | Le moteur réessaie automatiquement ; les temporisations sont dans `src/trades.js` |
 
@@ -246,7 +288,10 @@ git push origin v1.1.0
 │  ├─ store.js          # historiques JSONL
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
 ├─ public/index.html    # interface du tableau de bord
-├─ build/               # KYARA BOT.svg + icônes générées + visuels du setup NSIS + scripts
+├─ scripts/
+│  └─ install-code-signing-cert.ps1  # installe le certificat public de signature
+├─ build/               # KYARA BOT.svg, icônes, visuels NSIS, certificats publics de signature, scripts
+├─ LICENSE.txt          # licence d'utilisation (EULA, affichée par l'installateur)
 └─ package.json         # scripts, dépendances et configuration electron-builder
 ```
 
@@ -256,5 +301,6 @@ git push origin v1.1.0
 
 ## Licence
 
-Projet personnel fourni « tel quel », sans garantie. Aucune licence open source explicite n'est accordée :
-le code est publié pour permettre l'installation et la modification par son auteur.
+Le Logiciel est distribué sous la **licence d'utilisation personnelle** fournie dans
+[LICENSE.txt](LICENSE.txt) : usage personnel, pas de revente, absence de garantie, non-affiliation à
+kyara.games. Cette licence est également affichée par le programme d'installation et incluse dans l'application.

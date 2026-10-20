@@ -1,0 +1,51 @@
+LICENCE D'UTILISATION — KYARA BOT
+Version 1.0 — 21 octobre 2026
+
+1. OBJET
+La présente licence régit l'utilisation de l'application « Kyara Bot » (le
+« Logiciel »), application de bureau qui automatise des actions sur le site
+kyara.games (ouverture de boosters, échanges, estimations de prix).
+
+2. DROIT D'USAGE
+L'auteur concède à l'utilisateur un droit d'usage personnel, non exclusif et
+non transférable du Logiciel, pour son propre compte, sur les appareils dont il
+est l'utilisateur.
+
+3. RESTRICTIONS
+- La revente, la location ou la redistribution commerciale du Logiciel sont
+  interdites sans autorisation écrite de l'auteur.
+- Toute utilisation contraire aux conditions d'utilisation de kyara.games est
+  de la responsabilité exclusive de l'utilisateur.
+- Le Logiciel ne doit pas être utilisé pour nuire à un tiers, contourner des
+  Limitations d'accès, ou automatiser des comptes dont l'utilisateur n'est pas
+  le titulaire.
+
+4. ABSENCE DE GARANTIE
+Le Logiciel est fourni « en l'état », sans garantie d'aucune sorte, expresse ou
+implicite, notamment sans garantie de disponibilité, d'exactitude, de
+compatibilité ou d'absence d'erreur. L'auteur ne garantit pas que le Logiciel
+fonctionnera avec une version future du site kyara.games.
+
+5. NON-AFFILIATION
+Le Logiciel est un projet personnel indépendant. Il n'est ni affilié, ni
+approuvé, ni sponsorisé par kyara.games, DeepSeek, Figma ou Discord. Les marques
+citées appartiennent à leurs propriétaires respectifs.
+
+6. RESPONSABILITÉ
+L'utilisateur est seul responsable de son compte, de ses données et de l'usage
+du Logiciel, y compris des conséquences d'une automatisation sur son compte
+kyara.games (suspension, perte de données, etc.). L'auteur ne saurait être tenu
+responsable d'un dommage direct ou indirect résultant de l'utilisation du
+Logiciel.
+
+7. DONNÉES LOCALES
+Le Logiciel stocke ses données (configuration, historique, profil de navigation)
+localement sur l'appareil de l'utilisateur. Aucun serveur de l'auteur ne
+collecte ces données.
+
+8. DURÉE
+La licence prend effet à l'installation et demeure valable tant que le Logiciel
+est utilisé conformément aux présentes conditions. L'auteur peut la révoquer en
+cas de manquement.
+
+En installant ou en utilisant le Logiciel, vous acceptez les termes ci-dessus.
