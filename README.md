@@ -151,10 +151,12 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.0.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.0.0.exe` — exécutable portable
+- `Kyara-Bot-Setup-1.0.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.0.1.exe` — exécutable portable
 
-L'icône est générée depuis `build/icon.png` / `build/icon.ico` (script `build/make-icon.py`, Pillow requis).
+L'icône de l'application est générée depuis `build/KYARA BOT.svg` : `npm run icons` rend le PNG
+(`build/icon.png`, 1024×1024 via Playwright/Chromium) puis `python build/make-ico.py` produit l'ICO
+multi-tailles (`build/icon.ico`, Pillow requis).
 
 > Pour publier directement sur GitHub : `GH_TOKEN=<ton token> npx electron-builder --win --publish always`
 > (voir aussi le workflow CI ci-dessous).
@@ -168,8 +170,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 ---
@@ -215,7 +217,7 @@ git push origin v1.0.0
 │  ├─ store.js          # historiques JSONL
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
 ├─ public/index.html    # interface du tableau de bord
-├─ build/               # icônes (icon.png / icon.ico) + script de génération
+├─ build/               # KYARA BOT.svg + icônes générées (icon.png / icon.ico) + scripts de génération
 └─ package.json         # scripts, dépendances et configuration electron-builder
 ```
 

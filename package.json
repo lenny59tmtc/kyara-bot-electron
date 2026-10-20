@@ -1,7 +1,7 @@
 {
   "name": "kyara-bot-electron",
   "productName": "Kyara Bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Kyara Booster Bot — application de bureau Electron (serveur local, tableau de bord et moteur d'échanges automatiques)",
   "author": "lenny59tmtc",
@@ -22,7 +22,8 @@
     "bot": "node src/index.js",
     "dashboard": "node src/server.js",
     "recon": "node src/recon.js",
-    "icons": "python build/make-icon.py",
+    "icons": "node build/render-icon.mjs",
+    "icons:ico": "python build/make-ico.py",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win",
     "dist:setup": "electron-builder --win nsis",
