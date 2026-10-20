@@ -1,4 +1,4 @@
-name: build
+﻿name: build
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Installer les dépendances
+      - name: Installer les dÃ©pendances
         run: npm ci
 
       - name: Construire l'installateur et la version portable
@@ -39,6 +39,7 @@ jobs:
             dist/*Setup*.exe
             dist/*Portable*.exe
           generate_release_notes: true
+          overwrite: true
 
       - name: Archiver les binaires
         uses: actions/upload-artifact@v4
