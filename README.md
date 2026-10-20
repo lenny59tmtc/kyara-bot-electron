@@ -121,16 +121,15 @@ En mode développement (`npm start` / `npm run bot`), c'est le dossier du projet
 ```bash
 git clone https://github.com/lenny59tmtc/kyara-bot-electron.git
 cd kyara-bot-electron
-npm install
+npm install                       # installe les dépendances + télécharge Electron
+npx playwright install chromium   # télécharge le navigateur piloté par le bot
 npm start
 ```
 
-`npm install` installe Electron, electron-builder et Playwright, et télécharge le Chromium de Playwright
-utilisé en développement (`%LOCALAPPDATA%\ms-playwright`). Si le téléchargement est désactivé :
-
-```bash
-npx playwright install chromium
-```
+`npm install` exécute un `postinstall` qui télécharge le binaire Electron (~120 Mo).
+Le Chromium de Playwright utilisé en développement se télécharge séparément avec
+`npx playwright install chromium`. Si le téléchargement d'Electron est bloqué (proxy/antivirus),
+relance-le avec `node node_modules/electron/install.js`.
 
 Autres commandes utiles :
 
@@ -189,7 +188,8 @@ git push origin v1.0.0
 | Symptôme | Solution |
 |---|---|
 | « Le serveur local n'a pas démarré à temps » | Ouvre le journal `logs/server.log` ; relance l'app ; vérifie qu'un antivirus ne bloque pas Node/Electron |
-| Le téléchargement de Chromium échoue | Vérifie la connexion/proxy, puis menu **Bot → Réinstaller le navigateur Chromium** |
+| Electron ne démarre pas après `npm install` | Le binaire n'a pas été téléchargé : `node node_modules/electron/install.js` |
+| Le téléchargement de Chromium échoue | Vérifie la connexion/proxy, puis menu **Bot → Réinstaller le navigateur Chromium** (ou `npx playwright install chromium` en dev) |
 | Le bot reste « non connecté » | Connecte-toi dans la fenêtre Chromium ouverte sur kyara.games (le bot reprend ensuite tout seul) |
 | SmartScreen bloque l'installateur | « Informations complémentaires » → « Exécuter quand même » (binaire non signé) |
 | Antivirus signale l'application | Ajoute une exclusion pour le dossier d'installation et le dossier de données |
