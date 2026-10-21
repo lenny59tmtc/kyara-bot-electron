@@ -7,6 +7,14 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.7.2
+
+- **Correction de la version affichée par le bouton de mise à jour** : le bouton prend désormais la version la plus
+  récente entre la dernière Release GitHub et l'état de l'auto-update, au lieu de se fier à un état périmé.
+- Un état auto-update écrit par une **version précédente** est ignoré (assaini côté serveur), et un téléchargement
+  obsolète n'est plus installé : le bouton affiche toujours la version réellement proposée.
+- Cas couverts : état « idle » périmé, téléchargement d'une ancienne version, mise à jour déjà installée.
+
 ## Nouveautés de la version 1.7.1
 
 - **Ouverture automatique désactivée par défaut** (`autoOpen: false`). Les configurations existantes sont migrées
@@ -373,9 +381,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.7.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.7.1.exe` — exécutable portable
-- `Kyara-Bot-1.7.1-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.7.2.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.7.2.exe` — exécutable portable
+- `Kyara-Bot-1.7.2-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -399,8 +407,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.7.1
-git push origin v1.7.1
+git tag v1.7.2
+git push origin v1.7.2
 ```
 
 ---

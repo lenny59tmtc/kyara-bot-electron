@@ -214,8 +214,49 @@ function configureAutoUpdater() {
   return true;
 }
 
+function versionParts(version) {
+  return String(version || "")
+    .replace(/^v/i, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function compareVersions(a, b) {
+  const pa = versionParts(a);
+  const pb = versionParts(b);
+  const length = Math.max(pa.length, pb.length);
+  for (let i = 0; i < length; i++) {
+    const va = pa[i] ?? 0;
+    const vb = pb[i] ?? 0;
+    if (va !== vb) return va < vb ? -1 : 1;
+  }
+  return 0;
+}
+
+function updateStatusVersionIsNewer() {
+  const latest = updateStatus?.latestVersion;
+  return Boolean(latest) && compareVersions(latest, app.getVersion()) > 0;
+}
+
+function downloadedVersionIsNewer() {
+  return updateStatus?.phase === "downloaded" && updateStatusVersionIsNewer();
+}
+
 function installDownloadedUpdate() {
   if (isQuitting) return;
+  if (!downloadedVersionIsNewer()) {
+    installRequested = false;
+    updaterLog("warn", "mise à jour téléchargée obsolète — vérification à nouveau");
+    writeUpdateStatus({
+      phase: "idle",
+      latestVersion: app.getVersion(),
+      percent: null,
+      canRestart: false,
+      error: null,
+    });
+    return;
+  }
   updaterLog("info", "installation de la mise à jour");
   isQuitting = true;
   stopServer();
@@ -230,14 +271,25 @@ function requestUpdateInstall() {
   attachAutoUpdaterEvents();
   attachUpdateActionWatcher();
   installRequested = true;
-  if (updateStatus?.phase === "downloaded") {
-    installRequested = false;
-    installDownloadedUpdate();
-    return { ok: true, installing: true };
+  const phase = updateStatus?.phase;
+  if (phase === "downloaded") {
+    if (downloadedVersionIsNewer()) {
+      installRequested = false;
+      installDownloadedUpdate();
+      return { ok: true, installing: true };
+    }
+    // Le fichier téléchargé ne correspond plus à une version plus récente.
+    writeUpdateStatus({
+      phase: "idle",
+      latestVersion: app.getVersion(),
+      percent: null,
+      canRestart: false,
+      error: null,
+    });
   }
-  // Téléchargement/vérification déjà en cours : l'installation se fera
-  // automatiquement dès que la mise à jour sera téléchargée.
-  if (["available", "downloading", "checking"].includes(updateStatus?.phase)) {
+  // Téléchargement/vérification déjà en cours d'une version plus récente :
+  // l'installation se fera automatiquement dès qu'elle sera téléchargée.
+  if (["available", "downloading", "checking"].includes(phase) && updateStatusVersionIsNewer()) {
     return { ok: true, installing: false };
   }
   checkForUpdatesNow("install").catch(() => {});
@@ -408,9 +460,21 @@ function checkForUpdatesBeforeStartup() {
     const onDownloaded = (info) => {
       clearTimeout(checkTimer);
       clearTimeout(downloadTimer);
+      const downloadedVersion = info?.version || null;
+      if (downloadedVersion && compareVersions(downloadedVersion, app.getVersion()) <= 0) {
+        writeUpdateStatus({
+          phase: "idle",
+          latestVersion: downloadedVersion,
+          percent: null,
+          canRestart: false,
+          error: null,
+        });
+        finish({ available: false });
+        return;
+      }
       writeUpdateStatus({
         phase: "downloaded",
-        latestVersion: info?.version || null,
+        latestVersion: downloadedVersion,
         percent: 100,
         downloadedAt: new Date().toISOString(),
         canRestart: true,

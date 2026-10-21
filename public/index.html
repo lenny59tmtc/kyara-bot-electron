@@ -742,6 +742,35 @@ async function refreshUpdate() {
   renderUpdate();
 }
 
+function versionParts(version) {
+  return String(version || "")
+    .replace(/^v/i, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function compareVersions(a, b) {
+  const pa = versionParts(a);
+  const pb = versionParts(b);
+  const length = Math.max(pa.length, pb.length);
+  for (let i = 0; i < length; i++) {
+    const va = pa[i] ?? 0;
+    const vb = pb[i] ?? 0;
+    if (va !== vb) return va < vb ? -1 : 1;
+  }
+  return 0;
+}
+
+function highestVersion(versions) {
+  let best = null;
+  for (const version of versions) {
+    if (!version) continue;
+    if (!best || compareVersions(version, best) > 0) best = version;
+  }
+  return best;
+}
+
 function renderUpdate() {
   const btn = $("updateBtn");
   if (!btn) return;
@@ -751,22 +780,29 @@ function renderUpdate() {
     if ($("cfgVersion")) $("cfgVersion").textContent = updateInfo.currentVersion;
   }
   const auto = updateInfo?.auto;
-  const phase = auto?.phase;
-  const latest = auto?.latestVersion || updateInfo?.latestVersion;
-  const available = updateInfo?.updateAvailable === true;
+  const current = updateInfo?.currentVersion || auto?.currentVersion || "";
+  // L'état auto-update peut provenir d'une version précédente : on l'ignore.
+  const autoFresh = Boolean(auto) && (!auto.currentVersion || !current || auto.currentVersion === current);
+  const phase = autoFresh ? auto.phase : null;
+  const autoLatest = autoFresh ? auto.latestVersion : null;
+  // Prendre la version la plus récente entre GitHub et l'état auto-update.
+  const latest = highestVersion([autoLatest, updateInfo?.latestVersion]);
+  const latestIsNewer = Boolean(latest) && (!current || compareVersions(latest, current) > 0);
+  const autoMatchesLatest = Boolean(autoLatest && latest && compareVersions(autoLatest, latest) >= 0);
   const supported = auto?.supported !== false;
-  const autoReady = phase === "downloaded";
-  const autoDownloading = phase === "downloading" || phase === "available";
-  const visible = supported && (autoReady || autoDownloading || available);
+  const autoReady = phase === "downloaded" && autoMatchesLatest && latestIsNewer;
+  const autoDownloading = (phase === "downloading" || phase === "available") && autoMatchesLatest && latestIsNewer;
+  const available = latestIsNewer && (updateInfo?.updateAvailable === true || autoReady || autoDownloading);
+  const visible = supported && available;
   btn.hidden = !visible;
 
   const footerState = $("footerState");
   if (footerState) {
     if (autoReady) footerState.textContent = `mise à jour v${latest || ""} prête — installer`;
-    else if (phase === "downloading") footerState.textContent = `téléchargement de la mise à jour ${Number(auto?.percent) || 0} %`;
-    else if (phase === "available") footerState.textContent = `mise à jour v${latest || ""} en cours de téléchargement`;
+    else if (phase === "downloading" && autoMatchesLatest && latestIsNewer) footerState.textContent = `téléchargement de la mise à jour ${Number(auto?.percent) || 0} %`;
+    else if (phase === "available" && autoMatchesLatest && latestIsNewer) footerState.textContent = `mise à jour v${latest || ""} en cours de téléchargement`;
     else if (available && !supported) footerState.textContent = `mise à jour v${latest || ""} disponible — version portable : installation manuelle`;
-    else if (phase === "error") footerState.textContent = "mise à jour automatique indisponible";
+    else if (phase === "error" && latestIsNewer) footerState.textContent = "mise à jour automatique indisponible";
     else if (available) footerState.textContent = `mise à jour v${latest || ""} disponible`;
     else if (updateInfo?.error) footerState.textContent = "vérification des mises à jour indisponible";
     else if (updateInfo?.latestVersion) footerState.textContent = "à jour";

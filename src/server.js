@@ -20,6 +20,15 @@ const MIME = {
   ".map": "application/json",
 };
 
+function getFreshAutoUpdateState() {
+  const auto = getAutoUpdateState();
+  if (!auto) return null;
+  const current = getUpdateState().currentVersion;
+  // Un état écrit par une version précédente ne doit pas alimenter le bouton.
+  if (auto.currentVersion && current && auto.currentVersion !== current) return null;
+  return auto;
+}
+
 export function createServer(bot) {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -37,14 +46,14 @@ export function createServer(bot) {
       return json(res, bot.snapshot());
     }
     if (url.pathname === "/api/update") {
-      return json(res, { ...getUpdateState(), auto: getAutoUpdateState() });
+      return json(res, { ...getUpdateState(), auto: getFreshAutoUpdateState() });
     }
     if (url.pathname === "/api/update/restart" && req.method === "POST") {
       return json(res, requestAutoUpdateRestart());
     }
     if (url.pathname === "/api/update/check" && req.method === "POST") {
       const result = await checkForUpdates();
-      return json(res, { ...result, auto: getAutoUpdateState() });
+      return json(res, { ...result, auto: getFreshAutoUpdateState() });
     }
     if (url.pathname === "/api/update/install" && req.method === "POST") {
       return json(res, requestAutoUpdateInstall());
