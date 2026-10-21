@@ -186,6 +186,9 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
+| GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) |
+| POST | `/api/update/install` | Demande le téléchargement puis l'installation de la mise à jour (bouton du tableau de bord) |
+| POST | `/api/update/restart` | Demande l'installation immédiate d'une mise à jour déjà téléchargée |
 | POST | `/api/bot/start` | Démarre le bot |
 | POST | `/api/bot/stop` | Arrête le bot |
 | GET | `/events` | SSE : `state`, `log`, `opening`, `batch`, `trade`, `sale` |
@@ -227,7 +230,17 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   automatiquement (sauf arrêt explicite) et expose `browserOpen` / `browserClosed` dans `/api/state`.
 - Une erreur `rate_limited` est détectée dans `bot.api`/`apiPost` : backoff global (`rateLimitedUntil`), pause du bot,
   des échanges et de la vente automatique, sans fermer Chromium. Le tableau de bord affiche un compte à rebours.
-- L'analyse de marché vérifie que la page est sur `kyara.games` (retour automatique si session connectée), limite
-  sa concurrence à 2 requêtes, étale les appels, lit `Retry-After`, et jette `rate_limited` en cas de 429 persistant.
-  Le cache marché expire après 3 minutes.
+- L'analyse de marché utilise **uniquement `/me/collection`** (médianes/dernière vente) : aucune requête
+  `/market/listings` par personnage, ce qui supprime la source des `rate_limited`. Deux petites pauses irrégulières
+  séparent les appels de collection et du catalogue.
+- `GET /api/me/market` reste interrogé une fois pour connaître les annonces actives.
 - `POST /api/bot/browser/restart` ferme puis relance Chromium (bouton « Relancer Chromium » de l'interface).
+
+### Mises à jour (electron-updater)
+
+- Au démarrage, le processus principal vérifie et installe d'abord une éventuelle mise à jour **avant** de lancer
+  le serveur local. Pendant l'utilisation, il vérifie toutes les 4 h et télécharge en arrière-plan.
+- `POST /api/update/install` écrit `update/install.request` ; le processus principal télécharge puis installe
+  immédiatement (`quitAndInstall`) et relance l'application. `POST /api/update/restart` installe une mise à jour
+  déjà téléchargée.
+- Les modes portable/ZIP n'ont pas d'auto-update : le bouton est masqué et `auto.supported` vaut `false`.

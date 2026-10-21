@@ -349,7 +349,7 @@
 
   <aside>
     <div class="panel" style="margin-bottom:18px" id="configPanel">
-      <h2>Configuration</h2>
+      <h2>Configuration des ouvertures</h2>
       <div class="cfg">
         <label>Booster gratuit à ouvrir
           <select id="pack">
@@ -389,61 +389,8 @@
           <span class="switch"><input type="checkbox" id="sound" /><span class="slider"></span></span>
         </label>
         <button class="ghost" id="testSound">Tester le son</button>
-        <div class="cfg-title">Vente automatique des doublons</div>
-        <label class="switch-row">
-          <span>Vente automatique activée</span>
-          <span class="switch"><input type="checkbox" id="autoSell" /><span class="slider"></span></span>
-        </label>
-        <p class="sub2 cfg-note">
-          Désactivée par défaut. Les doublons éligibles sont mis en vente un par un avec un délai aléatoire.
-        </p>
-        <label>Rareté maximale des doublons à vendre
-          <select id="sellMaxRarity">
-            <option value="C">Commun</option>
-            <option value="U">Peu commun</option>
-            <option value="R">Rare</option>
-            <option value="E">Épique</option>
-            <option value="L">Légendaire</option>
-            <option value="M">Mythique</option>
-          </select>
-        </label>
-        <label>Stratégie de prix
-          <select id="sellPricing">
-            <option value="fast">Vite — prix bas, vente rapide</option>
-            <option value="normal">Normal — prix conseillé</option>
-            <option value="patient">Patient — prix plus haut</option>
-          </select>
-        </label>
-        <label class="switch-row">
-          <span>Mode discret (anti-détection)</span>
-          <span class="switch"><input type="checkbox" id="sellStealth" /><span class="slider"></span></span>
-        </label>
-        <p class="sub2 cfg-note">
-          Mode discret : pauses humaines (plancher 25 s), ordre aléatoire, activité souris/scroll, prix ±3 %,
-          sessions limitées et pauses de 2 à 7 min.
-        </p>
-        <label>Délai aléatoire entre deux ventes (secondes)
-          <div class="row">
-            <input type="number" id="sellDelayMin" min="5" max="600" step="5" />
-            <span>et</span>
-            <input type="number" id="sellDelayMax" min="5" max="600" step="5" />
-          </div>
-        </label>
-        <label>Type d'annonce
-          <div class="row">
-            <select id="saleType">
-              <option value="fixed">Vente directe (prix fixe)</option>
-              <option value="auction">Enchère</option>
-            </select>
-            <select id="saleDuration">
-              <option value="12">12 h</option>
-              <option value="24">24 h</option>
-              <option value="48">48 h</option>
-            </select>
-          </div>
-        </label>
         <div class="row">
-          <button class="ghost" id="save">Enregistrer</button>
+          <button class="ghost" id="saveOpen">Enregistrer</button>
         </div>
       </div>
     </div>
@@ -482,6 +429,32 @@
       <div id="dupTable"><div class="empty">Chargement…</div></div>
     </div>
   </section>
+
+  <aside>
+    <div class="panel" id="dupConfigPanel">
+      <h2>Réglages de vente manuelle</h2>
+      <div class="cfg">
+        <label>Type d'annonce
+          <div class="row">
+            <select id="saleType">
+              <option value="fixed">Vente directe (prix fixe)</option>
+              <option value="auction">Enchère</option>
+            </select>
+            <select id="saleDuration">
+              <option value="12">12 h</option>
+              <option value="24">24 h</option>
+              <option value="48">48 h</option>
+            </select>
+          </div>
+        </label>
+        <p class="sub2 cfg-note">
+          Ces réglages s'appliquent aux ventes manuelles et à la vente automatique. Les réglages de la vente
+          automatique se trouvent dans l'onglet <b>Ventes & bilan</b>.
+        </p>
+        <div class="row"><button class="ghost" id="saveDup">Enregistrer</button></div>
+      </div>
+    </div>
+  </aside>
 </main>
 
 <main id="viewTrade" style="display:none">
@@ -560,7 +533,7 @@
   </section>
 
   <aside>
-    <div class="panel" style="margin-bottom:18px">
+    <div class="panel" style="margin-bottom:18px" id="sellConfigPanel">
       <h2>Vente automatique</h2>
       <div class="cfg">
         <div class="sell-hero">
@@ -568,10 +541,51 @@
           <span class="sub2" id="sellState">—</span>
         </div>
         <p class="sub2" style="margin:0" id="sellHint">
-          Active la vente automatique dans le panneau Configuration (onglet Ouvertures).
+          Active la vente automatique ci-dessous. Elle est désactivée par défaut.
         </p>
         <div class="sub2" id="sellNext"></div>
-        <div class="row"><button class="ghost" id="sellConfigBtn">Configurer la vente</button></div>
+
+        <div class="cfg-title">Réglages de la vente automatique</div>
+        <label class="switch-row">
+          <span>Vente automatique activée</span>
+          <span class="switch"><input type="checkbox" id="autoSell" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          Désactivée par défaut. Les doublons éligibles sont mis en vente un par un.
+        </p>
+        <label>Rareté maximale des doublons à vendre
+          <select id="sellMaxRarity">
+            <option value="C">Commun</option>
+            <option value="U">Peu commun</option>
+            <option value="R">Rare</option>
+            <option value="E">Épique</option>
+            <option value="L">Légendaire</option>
+            <option value="M">Mythique</option>
+          </select>
+        </label>
+        <label>Stratégie de prix
+          <select id="sellPricing">
+            <option value="fast">Vite — prix bas, vente rapide</option>
+            <option value="normal">Normal — prix conseillé</option>
+            <option value="patient">Patient — prix plus haut</option>
+          </select>
+        </label>
+        <label class="switch-row">
+          <span>Mode discret (anti-détection)</span>
+          <span class="switch"><input type="checkbox" id="sellStealth" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          Pauses humaines (plancher 25 s), ordre aléatoire, souris/scroll, prix ±3 %, sessions limitées et
+          pauses de 2 à 7 min.
+        </p>
+        <label>Délai aléatoire entre deux ventes (secondes)
+          <div class="row">
+            <input type="number" id="sellDelayMin" min="5" max="600" step="5" />
+            <span>et</span>
+            <input type="number" id="sellDelayMax" min="5" max="600" step="5" />
+          </div>
+        </label>
+        <div class="row"><button class="ghost" id="saveSell">Enregistrer</button></div>
       </div>
     </div>
     <div class="panel">
@@ -661,17 +675,18 @@ function renderUpdate() {
   const phase = auto?.phase;
   const latest = auto?.latestVersion || updateInfo?.latestVersion;
   const available = updateInfo?.updateAvailable === true;
+  const supported = auto?.supported !== false;
   const autoReady = phase === "downloaded";
   const autoDownloading = phase === "downloading" || phase === "available";
-  const manualFallback = available && !autoReady && !autoDownloading;
-  const visible = autoReady || autoDownloading || manualFallback;
+  const visible = supported && (autoReady || autoDownloading || available);
   btn.hidden = !visible;
 
   const footerState = $("footerState");
   if (footerState) {
-    if (autoReady) footerState.textContent = `mise à jour v${latest || ""} prête — redémarrer`;
+    if (autoReady) footerState.textContent = `mise à jour v${latest || ""} prête — installer`;
     else if (phase === "downloading") footerState.textContent = `téléchargement de la mise à jour ${Number(auto?.percent) || 0} %`;
     else if (phase === "available") footerState.textContent = `mise à jour v${latest || ""} en cours de téléchargement`;
+    else if (available && !supported) footerState.textContent = `mise à jour v${latest || ""} disponible — version portable : installation manuelle`;
     else if (phase === "error") footerState.textContent = "mise à jour automatique indisponible";
     else if (available) footerState.textContent = `mise à jour v${latest || ""} disponible`;
     else if (updateInfo?.error) footerState.textContent = "vérification des mises à jour indisponible";
@@ -684,41 +699,34 @@ function renderUpdate() {
     return;
   }
   if (autoReady) {
-    btn.innerHTML = `<span class="ub-icon">⟳</span><span>Mise à jour <b>v${escapeHtml(latest || "?")}</b> prête — <b>Redémarrer</b></span>`;
+    btn.innerHTML = `<span class="ub-icon">⟳</span><span>Mise à jour <b>v${escapeHtml(latest || "?")}</b> prête — <b>Installer et redémarrer</b></span>`;
     btn.title = "Installe la mise à jour et relance l'application";
-    btn.onclick = (event) => {
-      event.preventDefault();
-      restartForUpdate();
-    };
-    return;
-  }
-  if (autoDownloading) {
+  } else if (autoDownloading) {
     const percent = Math.max(0, Math.min(100, Number(auto?.percent) || 0));
-    btn.innerHTML = `<span class="ub-icon">↓</span><span>Téléchargement de la mise à jour <b>v${escapeHtml(latest || "?")}</b> — <b>${percent} %</b></span>`;
-    btn.title = "Téléchargement automatique en cours";
-    btn.onclick = (event) => event.preventDefault();
-    return;
+    btn.innerHTML = `<span class="ub-icon">↓</span><span>Téléchargement de la mise à jour <b>v${escapeHtml(latest || "?")}</b> — <b>${percent} %</b> — cliquer pour installer ensuite</span>`;
+    btn.title = "Téléchargement en cours ; clique pour installer dès qu'elle est prête";
+  } else {
+    btn.innerHTML = `<span class="ub-icon">⬇</span><span><b>Installer la mise à jour</b> v${escapeHtml(latest || "?")}</span>`;
+    btn.title = "Télécharge et installe la mise à jour";
   }
-  const target = updateInfo.downloadUrl || updateInfo.releaseUrl || "";
-  btn.innerHTML = `<span class="ub-icon">↑</span><span>Mise à jour <b>v${escapeHtml(latest || "?")}</b> disponible</span>`;
-  btn.title = "Télécharge la nouvelle version";
   btn.onclick = (event) => {
     event.preventDefault();
-    if (target) window.open(target, "_blank");
+    installForUpdate();
   };
 }
 
-async function restartForUpdate() {
+async function installForUpdate() {
   try {
-    const response = await fetch("/api/update/restart", { method: "POST" });
+    const response = await fetch("/api/update/install", { method: "POST" });
     const result = await response.json();
     if (!result.ok) {
-      toast("La mise à jour n'est pas encore prête — réessaie dans un instant");
+      toast(`Mise à jour impossible : ${result.reason || result.error || "indisponible"}`);
       return;
     }
-    toast("Redémarrage pour installer la mise à jour…");
+    toast(result.installing ? "Installation de la mise à jour…" : "Téléchargement de la mise à jour…");
+    setTimeout(refreshUpdate, 1500);
   } catch {
-    toast("Impossible de redémarrer automatiquement");
+    toast("Impossible de lancer la mise à jour");
   }
 }
 
@@ -1077,7 +1085,7 @@ function renderSellStatus() {
     const stealth = cfg.sellStealth !== false;
     $("sellHint").textContent = enabled
       ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s · ${stealth ? "mode discret" : "mode rapide"}`
-      : "Active la vente automatique dans le panneau Configuration (onglet Ouvertures).";
+      : "Active la vente automatique dans les réglages ci-dessous (onglet Ventes & bilan).";
   }
   updateSellCountdown();
 }
@@ -1153,62 +1161,93 @@ function applyConfig(c) {
   $("sellDelayMin").value = c.sellDelayMin ?? 30;
   $("sellDelayMax").value = c.sellDelayMax ?? 90;
   $("sellStealth").checked = c.sellStealth !== false;
-  const save = $("save");
-  if (save) save.textContent = "Enregistrer";
+  resetSaveButtons();
 }
 
-$("toggle").addEventListener("click", async () => {
-  $("toggle").disabled = true;
-  await fetch(state?.running ? "/api/bot/stop" : "/api/bot/start", { method: "POST" });
-  setTimeout(async () => {
-    state = (await (await fetch("/api/state")).json());
-    renderState();
-    $("toggle").disabled = false;
-  }, 600);
-});
+function resetSaveButtons() {
+  for (const id of ["saveOpen", "saveDup", "saveSell"]) {
+    const button = $(id);
+    if (!button) continue;
+    button.textContent = "Enregistrer";
+    button.disabled = false;
+  }
+}
 
-$("save").addEventListener("click", async () => {
-  const saveBtn = $("save");
-  saveBtn.disabled = true;
+async function saveConfigPatch(payload, button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Enregistrement…";
+  }
   try {
-    const r = await fetch("/api/config", {
+    const response = await fetch("/api/config", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        pack: $("pack").value,
-        pollSeconds: Number($("poll").value) || 45,
-        openDaily: $("daily").checked,
-        autoOpen: $("autoOpen").checked,
-        soundOnRare: $("sound").checked,
-        batchMin: Number($("batchMin").value) || 6,
-        batchMax: Number($("batchMax").value) || 8,
-        saleType: $("saleType").value,
-        saleDurationHours: Number($("saleDuration").value) || 12,
-        autoSell: $("autoSell").checked,
-        sellMaxRarity: $("sellMaxRarity").value,
-        sellPricing: $("sellPricing").value,
-        sellDelayMin: Number($("sellDelayMin").value) || 30,
-        sellDelayMax: Number($("sellDelayMax").value) || 90,
-        sellStealth: $("sellStealth").checked,
-      }),
+      body: JSON.stringify(payload),
     });
-    applyConfig(await r.json());
+    applyConfig(await response.json());
     refreshSales();
     renderSellStatus();
     toast("Configuration enregistrée");
   } catch {
     toast("Impossible d'enregistrer la configuration");
+    if (button) button.textContent = "Enregistrer *";
   } finally {
-    saveBtn.disabled = false;
+    if (button) button.disabled = false;
   }
+}
+
+$("saveOpen").addEventListener("click", () => {
+  saveConfigPatch(
+    {
+      pack: $("pack").value,
+      pollSeconds: Number($("poll").value) || 45,
+      openDaily: $("daily").checked,
+      autoOpen: $("autoOpen").checked,
+      soundOnRare: $("sound").checked,
+      batchMin: Number($("batchMin").value) || 6,
+      batchMax: Number($("batchMax").value) || 8,
+    },
+    $("saveOpen"),
+  );
 });
 
-function markConfigDirty() {
-  const save = $("save");
-  if (save && !save.textContent.includes("*")) save.textContent = "Enregistrer *";
+$("saveDup").addEventListener("click", () => {
+  saveConfigPatch(
+    {
+      saleType: $("saleType").value,
+      saleDurationHours: Number($("saleDuration").value) || 12,
+    },
+    $("saveDup"),
+  );
+});
+
+$("saveSell").addEventListener("click", () => {
+  saveConfigPatch(
+    {
+      autoSell: $("autoSell").checked,
+      sellMaxRarity: $("sellMaxRarity").value,
+      sellPricing: $("sellPricing").value,
+      sellDelayMin: Number($("sellDelayMin").value) || 30,
+      sellDelayMax: Number($("sellDelayMax").value) || 90,
+      sellStealth: $("sellStealth").checked,
+    },
+    $("saveSell"),
+  );
+});
+
+function markButtonDirty(button) {
+  if (button && !button.textContent.includes("*")) button.textContent = "Enregistrer *";
 }
-$("configPanel").addEventListener("input", markConfigDirty);
-$("configPanel").addEventListener("change", markConfigDirty);
+for (const [panelId, buttonId] of [
+  ["configPanel", "saveOpen"],
+  ["dupConfigPanel", "saveDup"],
+  ["sellConfigPanel", "saveSell"],
+]) {
+  const panel = $(panelId);
+  if (!panel) continue;
+  panel.addEventListener("input", () => markButtonDirty($(buttonId)));
+  panel.addEventListener("change", () => markButtonDirty($(buttonId)));
+}
 
 $("testSound").addEventListener("click", playAlert);
 
@@ -1387,10 +1426,6 @@ $("dupQ").addEventListener("input", renderDup);
 $("dupRarity").addEventListener("change", renderDup);
 $("dupSellable").addEventListener("change", renderDup);
 $("sellRefresh").addEventListener("click", () => refreshSales());
-$("sellConfigBtn").addEventListener("click", () => {
-  switchTab("open");
-  setTimeout(() => $("configPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-});
 
 async function loadDuplicates(refresh = false) {
   if (dupLoading) return;

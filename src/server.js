@@ -4,7 +4,7 @@ import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
 import { getDuplicates } from "./market.js";
-import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart } from "./update.js";
+import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart, requestAutoUpdateInstall } from "./update.js";
 import { bus } from "./bus.js";
 
 const MIME = {
@@ -40,6 +40,9 @@ export function createServer(bot) {
     }
     if (url.pathname === "/api/update/restart" && req.method === "POST") {
       return json(res, requestAutoUpdateRestart());
+    }
+    if (url.pathname === "/api/update/install" && req.method === "POST") {
+      return json(res, requestAutoUpdateInstall());
     }
     if (url.pathname === "/api/login" && req.method === "POST") {
       try {

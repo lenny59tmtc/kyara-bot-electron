@@ -7,6 +7,17 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.6.0
+
+- **Mise à jour avant démarrage** : au lancement, l'application vérifie les mises à jour **avant** de démarrer le
+  serveur et l'interface. Si une version est trouvée, elle est téléchargée (progression sur l'écran de démarrage)
+  puis installée immédiatement ; l'application redémarre ensuite sur la nouvelle version.
+- **Bouton de mise à jour réellement actif** : le bouton sticky ne redirige plus vers GitHub ; il lance le
+  téléchargement puis l'installation (« Installer la mise à jour », « Installer et redémarrer »).
+- **Réglages répartis par onglet** : les paramètres d'ouverture sont dans **Ouvertures**, les réglages de vente
+  manuelle dans **Doublons à vendre**, la vente automatique dans **Ventes & bilan**, les échanges dans **Échanges**.
+  Chaque section a son propre bouton Enregistrer ; plus de bouton « Configurer la vente ».
+
 ## Nouveautés de la version 1.5.1
 
 - **Analyse de marché sans rate limit** : les prix proviennent directement de `/me/collection` (médianes et
@@ -41,7 +52,7 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 
 ## Nouveautés de la version 1.4.0
 
-- **Vente automatique des doublons**, **désactivée par défaut**, avec réglages dans le panneau Configuration :
+- **Vente automatique des doublons**, **désactivée par défaut**, avec réglages dans l'onglet **Ventes & bilan** :
   rareté maximale à vendre, stratégie de prix (Vite / Normal / Patient) et délai aléatoire min/max entre deux ventes.
 - **Bilan chakra** dans un nouvel onglet **Ventes & bilan** : chakra gagné sur 24 h / 60 min / moyenne par heure,
   graphique des 24 dernières heures, ventes récentes et journal des ventes.
@@ -166,8 +177,8 @@ que si la session expire.
 - Le réglage **« Ouverture automatique des boosters »** permet de suspendre/relancer les ouvertures sans arrêter le bot.
 - Les **échanges automatiques sont désactivés par défaut** ; ils se désactivent aussi automatiquement si le compte
   ne contient plus aucun doublon. Active-les depuis l'onglet **Échanges**.
-- La **vente automatique des doublons est désactivée par défaut** : active-la dans la **Configuration** (rareté max,
-  stratégie de prix, délai aléatoire) et suis le **bilan chakra** dans l'onglet **Ventes & bilan**.
+- La **vente automatique des doublons est désactivée par défaut** : active-la dans l'onglet **Ventes & bilan**
+  (rareté max, stratégie de prix, délai aléatoire, mode discret).
 - La **mise à jour est automatique** : téléchargement en arrière-plan puis installation à la fermeture, ou
   clic sur « Mise à jour prête — Redémarrer » pour l'installer immédiatement.
 - Fermer la fenêtre **ne quitte pas** l'application : elle se réduit dans la zone de notification
@@ -177,21 +188,24 @@ que si la session expire.
 
 ### Mise à jour automatique
 
-- L'application **installée** (Setup NSIS) vérifie les mises à jour au lancement puis **toutes les 4 heures**.
-- La nouvelle version est **téléchargée automatiquement en arrière-plan** ; le bouton sticky et la barre du bas
-  affichent la progression (« Téléchargement… 42 % »).
-- Une fois prête : **« Mise à jour prête — Redémarrer »** installe et relance immédiatement.
-- Sans clic, `autoInstallOnAppQuit` installe la mise à jour **à la fermeture** ; elle sera active au prochain démarrage.
-- Les versions **portable** et **ZIP** ne peuvent pas s'auto-remplacer : le bouton ouvre alors la page de téléchargement
-  (mise à jour manuelle).
+- **Au lancement**, l'application vérifie les mises à jour **avant** de démarrer le serveur et l'interface.
+  Si une version est disponible, elle est téléchargée (progression sur l'écran de démarrage) puis installée
+  immédiatement ; l'application redémarre ensuite sur la nouvelle version.
+- Pendant l'utilisation, une vérification est refaite toutes les 4 h et le téléchargement se fait en arrière-plan.
+- Le **bouton sticky** permet de lancer réellement l'installation (« Installer la mise à jour » /
+  « Installer et redémarrer ») ; il ne redirige plus vers GitHub.
+- Une fois téléchargée, l'installation peut aussi se faire automatiquement à la fermeture
+  (`autoInstallOnAppQuit`).
+- Les versions **portable** et **ZIP** ne peuvent pas s'auto-remplacer : le bouton est masqué et la barre du bas
+  indique qu'une installation manuelle est nécessaire.
 - Journaux : `logs/updater.log`. Chaque Release publie `latest.yml` (manifeste de mise à jour).
 
 ---
 
 ## Vente automatique des doublons et bilan chakra
 
-La vente automatique est **désactivée par défaut**. Elle se configure dans le panneau **Configuration** de l'onglet
-**Ouvertures** :
+La vente automatique est **désactivée par défaut**. Elle se configure dans l'onglet **Ventes & bilan**,
+panneau **Réglages de la vente automatique** :
 
 | Réglage | Valeur par défaut | Description |
 |---|---|---|
@@ -329,9 +343,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.5.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.5.1.exe` — exécutable portable
-- `Kyara-Bot-1.5.1-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.6.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.6.0.exe` — exécutable portable
+- `Kyara-Bot-1.6.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -355,8 +369,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.5.1
-git push origin v1.5.1
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
 ---

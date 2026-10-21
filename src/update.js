@@ -115,6 +115,7 @@ export function startUpdateChecker() {
 
 const HOME = process.env.KYARA_HOME ? path.resolve(process.env.KYARA_HOME) : path.join(SOURCE_DIR, "..");
 const AUTO_STATUS_PATH = path.join(HOME, "update", "status.json");
+const INSTALL_REQUEST_PATH = path.join(HOME, "update", "install.request");
 const RESTART_REQUEST_PATH = path.join(HOME, "update", "restart.request");
 
 export function getAutoUpdateState() {
@@ -122,6 +123,20 @@ export function getAutoUpdateState() {
     return JSON.parse(fs.readFileSync(AUTO_STATUS_PATH, "utf8"));
   } catch {
     return null;
+  }
+}
+
+/**
+ * Demande au processus Electron principal de télécharger puis d'installer la
+ * mise à jour (fichier surveillé par main.cjs).
+ */
+export function requestAutoUpdateInstall() {
+  try {
+    fs.mkdirSync(path.dirname(INSTALL_REQUEST_PATH), { recursive: true });
+    fs.writeFileSync(INSTALL_REQUEST_PATH, new Date().toISOString());
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
   }
 }
 

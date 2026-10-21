@@ -140,13 +140,28 @@ function updateRestartPath() {
   return path.join(updateDir(), "restart.request");
 }
 
+function updateInstallPath() {
+  return path.join(updateDir(), "install.request");
+}
+
+function cleanupUpdateControlFiles() {
+  for (const file of [updateInstallPath(), updateRestartPath()]) {
+    try {
+      fs.rmSync(file, { force: true });
+    } catch {}
+  }
+}
+
 function updaterLogPath() {
   return path.join(logsDir(), "updater.log");
 }
 
 let updateStatus = null;
 let updaterCheckTimer = null;
-let restartWatcher = null;
+let updateActionWatcher = null;
+let installRequested = false;
+let updaterEventsAttached = false;
+let startupUpdateChecked = false;
 
 function writeUpdateStatus(patch) {
   updateStatus = {
@@ -185,67 +200,214 @@ async function checkForUpdatesNow(reason = "manual") {
   }
 }
 
-function startRestartWatcher() {
-  if (restartWatcher) return;
-  restartWatcher = setInterval(() => {
+function configureAutoUpdater() {
+  if (!UPDATER_SUPPORTED) return false;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.logger = {
+    info: (m) => updaterLog("info", String(m)),
+    warn: (m) => updaterLog("warn", String(m)),
+    error: (m) => updaterLog("error", String(m)),
+    debug: (m) => updaterLog("debug", String(m)),
+  };
+  return true;
+}
+
+function installDownloadedUpdate() {
+  if (isQuitting) return;
+  updaterLog("info", "installation de la mise à jour");
+  isQuitting = true;
+  stopServer();
+  setTimeout(() => autoUpdater.quitAndInstall(true, true), 400);
+}
+
+function requestUpdateInstall() {
+  if (!UPDATER_SUPPORTED) {
+    return { ok: false, reason: DEV ? "dev" : PORTABLE ? "portable" : "unsupported" };
+  }
+  configureAutoUpdater();
+  attachAutoUpdaterEvents();
+  attachUpdateActionWatcher();
+  installRequested = true;
+  if (updateStatus?.phase === "downloaded") {
+    installRequested = false;
+    installDownloadedUpdate();
+    return { ok: true, installing: true };
+  }
+  // Téléchargement/vérification déjà en cours : l'installation se fera
+  // automatiquement dès que la mise à jour sera téléchargée.
+  if (["available", "downloading", "checking"].includes(updateStatus?.phase)) {
+    return { ok: true, installing: false };
+  }
+  checkForUpdatesNow("install").catch(() => {});
+  return { ok: true, installing: false };
+}
+
+function startUpdateActionWatcher() {
+  if (updateActionWatcher) return;
+  updateActionWatcher = setInterval(() => {
     try {
-      const file = updateRestartPath();
-      if (!fs.existsSync(file)) return;
-      fs.unlinkSync(file);
-      if (updateStatus?.phase !== "downloaded") return;
-      updaterLog("info", "redémarrage demandé pour installer la mise à jour");
-      isQuitting = true;
-      stopServer();
-      setTimeout(() => autoUpdater.quitAndInstall(true, true), 400);
+      const installFile = updateInstallPath();
+      if (fs.existsSync(installFile)) {
+        fs.unlinkSync(installFile);
+        requestUpdateInstall();
+        return;
+      }
+      const restartFile = updateRestartPath();
+      if (fs.existsSync(restartFile)) {
+        fs.unlinkSync(restartFile);
+        if (updateStatus?.phase === "downloaded") installDownloadedUpdate();
+      }
     } catch {}
   }, 1000);
-  restartWatcher.unref?.();
+  updateActionWatcher.unref?.();
+}
+
+function attachUpdateActionWatcher() {
+  startUpdateActionWatcher();
+}
+
+function attachAutoUpdaterEvents() {
+  if (updaterEventsAttached) return;
+  updaterEventsAttached = true;
+  autoUpdater.on("checking-for-update", () => writeUpdateStatus({ phase: "checking", error: null }));
+  autoUpdater.on("update-available", (info) => {
+    updaterLog("info", `mise à jour disponible : ${info?.version}`);
+    writeUpdateStatus({ phase: "available", latestVersion: info?.version || null, percent: 0, error: null });
+  });
+  autoUpdater.on("update-not-available", (info) => {
+    installRequested = false;
+    writeUpdateStatus({ phase: "idle", latestVersion: info?.version || null, percent: null, error: null });
+  });
+  autoUpdater.on("download-progress", (progress) => {
+    writeUpdateStatus({
+      phase: "downloading",
+      percent: Math.round(progress?.percent || 0),
+      transferred: progress?.transferred || 0,
+      total: progress?.total || 0,
+      bytesPerSecond: progress?.bytesPerSecond || 0,
+    });
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    updaterLog("info", `mise à jour téléchargée : ${info?.version}`);
+    writeUpdateStatus({
+      phase: "downloaded",
+      latestVersion: info?.version || null,
+      percent: 100,
+      downloadedAt: new Date().toISOString(),
+      canRestart: true,
+      error: null,
+    });
+    if (installRequested) {
+      installRequested = false;
+      installDownloadedUpdate();
+      return;
+    }
+    try {
+      tray?.displayBalloon?.({
+        title: APP_TITLE,
+        content: `Mise à jour ${info?.version} prête. Redémarre l'application pour l'installer.`,
+        iconType: "info",
+      });
+    } catch {}
+  });
+  autoUpdater.on("error", (error) => {
+    installRequested = false;
+    updaterLog("error", String(error?.stack || error));
+    writeUpdateStatus({ phase: "error", error: String(error?.message || error) });
+  });
 }
 
 function initAutoUpdater() {
-  if (DEV) {
-    writeUpdateStatus({ phase: "disabled", reason: "dev", supported: false });
+  if (!configureAutoUpdater()) {
+    writeUpdateStatus({
+      phase: "disabled",
+      reason: DEV ? "dev" : PORTABLE ? "portable" : process.platform,
+      supported: false,
+    });
     return;
   }
-  if (PORTABLE) {
-    writeUpdateStatus({ phase: "disabled", reason: "portable", supported: false });
-    return;
+  attachAutoUpdaterEvents();
+  if (!updateStatus) writeUpdateStatus({ phase: "idle", supported: true, error: null });
+  startUpdateActionWatcher();
+  // La vérification de démarrage a déjà été faite avant le lancement du serveur.
+  if (!startupUpdateChecked) {
+    setTimeout(() => checkForUpdatesNow("startup"), 6000);
+    startupUpdateChecked = true;
   }
-  if (!UPDATER_SUPPORTED) {
-    writeUpdateStatus({ phase: "disabled", reason: process.platform, supported: false });
-    return;
-  }
-  try {
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.allowPrerelease = false;
-    autoUpdater.logger = {
-      info: (m) => updaterLog("info", String(m)),
-      warn: (m) => updaterLog("warn", String(m)),
-      error: (m) => updaterLog("error", String(m)),
-      debug: (m) => updaterLog("debug", String(m)),
-    };
-    writeUpdateStatus({ phase: "idle", supported: true, error: null });
+  updaterCheckTimer = setInterval(() => checkForUpdatesNow("periodic"), UPDATE_CHECK_INTERVAL_MS);
+  updaterCheckTimer.unref?.();
+}
 
-    autoUpdater.on("checking-for-update", () => writeUpdateStatus({ phase: "checking", error: null }));
-    autoUpdater.on("update-available", (info) => {
-      updaterLog("info", `mise à jour disponible : ${info?.version}`);
+// Vérifie et installe une éventuelle mise à jour AVANT de démarrer le serveur
+// et l'interface. Retourne quand l'app peut démarrer normalement ; si une mise
+// à jour est trouvée, elle est téléchargée puis l'app quitte pour l'installer.
+function checkForUpdatesBeforeStartup() {
+  return new Promise((resolve) => {
+    if (!UPDATER_SUPPORTED) {
+      writeUpdateStatus({
+        phase: "disabled",
+        reason: DEV ? "dev" : PORTABLE ? "portable" : process.platform,
+        supported: false,
+      });
+      startupUpdateChecked = true;
+      return resolve({ skipped: true });
+    }
+    configureAutoUpdater();
+    writeUpdateStatus({ phase: "checking", supported: true, error: null });
+    splashStatus("Recherche d'une mise à jour…", null);
+    updaterLog("info", "vérification des mises à jour avant démarrage");
+
+    let settled = false;
+    let checkTimer = null;
+    let downloadTimer = null;
+    const cleanup = () => {
+      clearTimeout(checkTimer);
+      clearTimeout(downloadTimer);
+      autoUpdater.removeListener("checking-for-update", onChecking);
+      autoUpdater.removeListener("update-available", onAvailable);
+      autoUpdater.removeListener("update-not-available", onNotAvailable);
+      autoUpdater.removeListener("download-progress", onProgress);
+      autoUpdater.removeListener("update-downloaded", onDownloaded);
+      autoUpdater.removeListener("error", onError);
+    };
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      startupUpdateChecked = true;
+      cleanup();
+      resolve(result);
+    };
+    const onChecking = () => writeUpdateStatus({ phase: "checking", error: null });
+    const onAvailable = (info) => {
+      clearTimeout(checkTimer);
       writeUpdateStatus({ phase: "available", latestVersion: info?.version || null, percent: 0, error: null });
-    });
-    autoUpdater.on("update-not-available", (info) => {
+      splashStatus(`Mise à jour ${info?.version || ""} trouvée — téléchargement…`, 0);
+      downloadTimer = setTimeout(() => {
+        writeUpdateStatus({ phase: "error", error: "update_download_timeout" });
+        finish({ timeout: true });
+      }, 10 * 60 * 1000);
+    };
+    const onNotAvailable = (info) => {
       writeUpdateStatus({ phase: "idle", latestVersion: info?.version || null, percent: null, error: null });
-    });
-    autoUpdater.on("download-progress", (progress) => {
+      splashStatus("Application à jour — démarrage…", 100);
+      finish({ available: false });
+    };
+    const onProgress = (progress) => {
+      const percent = Math.round(progress?.percent || 0);
       writeUpdateStatus({
         phase: "downloading",
-        percent: Math.round(progress?.percent || 0),
+        percent,
         transferred: progress?.transferred || 0,
         total: progress?.total || 0,
         bytesPerSecond: progress?.bytesPerSecond || 0,
       });
-    });
-    autoUpdater.on("update-downloaded", (info) => {
-      updaterLog("info", `mise à jour téléchargée : ${info?.version}`);
+      splashStatus(`Téléchargement de la mise à jour… ${percent} %`, percent);
+    };
+    const onDownloaded = (info) => {
+      clearTimeout(checkTimer);
+      clearTimeout(downloadTimer);
       writeUpdateStatus({
         phase: "downloaded",
         latestVersion: info?.version || null,
@@ -254,28 +416,35 @@ function initAutoUpdater() {
         canRestart: true,
         error: null,
       });
+      splashStatus("Mise à jour prête — installation avant démarrage…", 100);
+      updaterLog("info", `mise à jour ${info?.version} téléchargée — installation avant démarrage`);
       try {
-        tray?.displayBalloon?.({
-          title: APP_TITLE,
-          content: `Mise à jour ${info?.version} prête. Redémarre l'application pour l'installer.`,
-          iconType: "info",
-        });
-      } catch {}
-    });
-    autoUpdater.on("error", (error) => {
-      updaterLog("error", String(error?.stack || error));
+        isQuitting = true;
+        autoUpdater.quitAndInstall(true, true);
+      } catch (error) {
+        isQuitting = false;
+        finish({ error: String(error?.message || error) });
+      }
+    };
+    const onError = (error) => {
+      updaterLog("error", `pré-démarrage : ${String(error?.stack || error)}`);
       writeUpdateStatus({ phase: "error", error: String(error?.message || error) });
-    });
+      finish({ error: String(error?.message || error) });
+    };
 
-    // Vérification automatique : quelques secondes après le lancement, puis toutes les 4 h.
-    setTimeout(() => checkForUpdatesNow("startup"), 6000);
-    updaterCheckTimer = setInterval(() => checkForUpdatesNow("periodic"), UPDATE_CHECK_INTERVAL_MS);
-    updaterCheckTimer.unref?.();
-    startRestartWatcher();
-  } catch (e) {
-    writeUpdateStatus({ phase: "error", error: String(e?.message || e) });
-    updaterLog("error", String(e?.stack || e));
-  }
+    autoUpdater.on("checking-for-update", onChecking);
+    autoUpdater.on("update-available", onAvailable);
+    autoUpdater.on("update-not-available", onNotAvailable);
+    autoUpdater.on("download-progress", onProgress);
+    autoUpdater.on("update-downloaded", onDownloaded);
+    autoUpdater.on("error", onError);
+
+    checkTimer = setTimeout(() => {
+      writeUpdateStatus({ phase: "idle", error: "update_check_timeout" });
+      finish({ timeout: true });
+    }, 15000);
+    autoUpdater.checkForUpdates().catch((error) => onError(error));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +521,21 @@ function splashStatus(text, percent) {
 function closeSplash() {
   if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
   splashWindow = null;
+}
+
+function waitForSplashLoaded(timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    if (!splashWindow || splashWindow.isDestroyed()) return resolve();
+    if (!splashWindow.webContents.isLoading()) return resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    splashWindow.webContents.once("did-finish-load", finish);
+    setTimeout(finish, timeoutMs);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -814,7 +998,14 @@ async function bootstrap() {
   buildMenu();
   createTray();
   createSplash();
+  await waitForSplashLoaded();
+  cleanupUpdateControlFiles();
   try {
+    const updateResult = await checkForUpdatesBeforeStartup();
+    if (isQuitting) return;
+    if (updateResult?.error) {
+      updaterLog("warn", `mise à jour ignorée au démarrage : ${updateResult.error}`);
+    }
     if (!DEV && !chromiumInstalled()) {
       await installChromium();
     }
