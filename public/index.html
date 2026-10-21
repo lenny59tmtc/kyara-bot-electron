@@ -429,6 +429,16 @@
         </div>
       </div>
     </div>
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Mises à jour</h2>
+      <div class="cfg">
+        <p class="sub2" style="margin:0">Version installée : <b id="cfgVersion">—</b></p>
+        <button class="ghost" id="checkUpdateBtn">Vérifier les mises à jour</button>
+        <p class="sub2" style="margin:0" id="updateCheckResult">
+          Vérification automatique au démarrage et toutes les 4 h.
+        </p>
+      </div>
+    </div>
     <div class="panel">
       <h2>Journal</h2>
       <div class="log" id="log"></div>
@@ -738,6 +748,7 @@ function renderUpdate() {
   if (updateInfo?.currentVersion) {
     $("ver").textContent = updateInfo.currentVersion;
     $("footerVer").textContent = "v" + updateInfo.currentVersion;
+    if ($("cfgVersion")) $("cfgVersion").textContent = updateInfo.currentVersion;
   }
   const auto = updateInfo?.auto;
   const phase = auto?.phase;
@@ -797,6 +808,40 @@ async function installForUpdate() {
     toast("Impossible de lancer la mise à jour");
   }
 }
+
+async function checkUpdatesNow() {
+  const btn = $("checkUpdateBtn");
+  const resultBox = $("updateCheckResult");
+  if (!btn || !resultBox) return;
+  btn.disabled = true;
+  btn.textContent = "Vérification…";
+  resultBox.textContent = "Recherche d'une mise à jour…";
+  try {
+    const response = await fetch("/api/update/check", { method: "POST" });
+    const data = await response.json();
+    updateInfo = data;
+    renderUpdate();
+    if (data.error) {
+      resultBox.textContent = `Vérification impossible : ${data.error}`;
+    } else if (data.updateAvailable) {
+      resultBox.textContent = `Mise à jour v${data.latestVersion || "?"} disponible${
+        data.auto?.supported === false ? " (installation manuelle pour la version portable/ZIP)" : ""
+      }.`;
+      toast(`Mise à jour v${data.latestVersion || "?"} disponible`);
+    } else {
+      resultBox.textContent = `Application à jour (v${data.currentVersion || "?"}).`;
+      toast("Application à jour");
+    }
+  } catch {
+    resultBox.textContent = "Vérification impossible (réseau).";
+    toast("Vérification des mises à jour impossible");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Vérifier les mises à jour";
+  }
+}
+
+$("checkUpdateBtn").addEventListener("click", checkUpdatesNow);
 
 async function requestLogin() {
   const btn = $("loginBtn");

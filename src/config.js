@@ -34,10 +34,14 @@ export const RARITY_COLORS = {
   M: "#FF4D2E",
 };
 
+const CONFIG_SCHEMA_VERSION = 2;
+
 const DEFAULTS = {
+  configVersion: CONFIG_SCHEMA_VERSION,
   pack: "all",
   openDaily: true,
-  autoOpen: true,
+  // Ouverture automatique désactivée par défaut.
+  autoOpen: false,
   pollSeconds: 45,
   port: 8787,
   soundOnRare: true,
@@ -63,7 +67,17 @@ export function loadConfig() {
   try {
     saved = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
   } catch {}
-  return { ...DEFAULTS, ...saved };
+  const merged = { ...DEFAULTS, ...saved };
+  // Migration unique : les configurations antérieures passent à l'ouverture
+  // automatique désactivée par défaut. L'utilisateur peut la réactiver ensuite.
+  if (Number(saved.configVersion || 0) < CONFIG_SCHEMA_VERSION) {
+    merged.autoOpen = false;
+    merged.configVersion = CONFIG_SCHEMA_VERSION;
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2));
+    } catch {}
+  }
+  return merged;
 }
 
 export function saveConfig(patch) {

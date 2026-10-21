@@ -188,6 +188,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
 | GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) |
+| POST | `/api/update/check` | Vérifie immédiatement la dernière Release et renvoie la version courante, la dernière version et `updateAvailable` |
 | POST | `/api/update/install` | Demande le téléchargement puis l'installation de la mise à jour (bouton du tableau de bord) |
 | POST | `/api/update/restart` | Demande l'installation immédiate d'une mise à jour déjà téléchargée |
 | POST | `/api/bot/start` | Démarre le bot |

@@ -5,7 +5,7 @@ import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
 import { getDuplicates, getMyMarket } from "./market.js";
 import { getSeriesOverview } from "./series.js";
-import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart, requestAutoUpdateInstall } from "./update.js";
+import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart, requestAutoUpdateInstall, checkForUpdates } from "./update.js";
 import { bus } from "./bus.js";
 
 const MIME = {
@@ -41,6 +41,10 @@ export function createServer(bot) {
     }
     if (url.pathname === "/api/update/restart" && req.method === "POST") {
       return json(res, requestAutoUpdateRestart());
+    }
+    if (url.pathname === "/api/update/check" && req.method === "POST") {
+      const result = await checkForUpdates();
+      return json(res, { ...result, auto: getAutoUpdateState() });
     }
     if (url.pathname === "/api/update/install" && req.method === "POST") {
       return json(res, requestAutoUpdateInstall());
