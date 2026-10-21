@@ -7,6 +7,15 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.4.1
+
+- **Correction du démarrage** : la boucle de veille de la vente automatique pouvait s'exécuter sans pause lorsque
+  la fonctionnalité était désactivée (par défaut), bloquant l'event loop du serveur local et provoquant l'erreur
+  « Le serveur local n'a pas démarré à temps ». La boucle respecte désormais une temporisation.
+- **Démarrage plus robuste** : le serveur HTTP répond avant le lancement du bot ; nettoyage des verrous/profils
+  Chromium résiduels après une mise à jour ; récupération automatique du profil si Chromium reste bloqué.
+- **Dialogue d'erreur amélioré** : extrait du journal du serveur + boutons « Réessayer » / « Ouvrir le journal ».
+
 ## Nouveautés de la version 1.4.0
 
 - **Vente automatique des doublons**, **désactivée par défaut**, avec réglages dans le panneau Configuration :
@@ -296,9 +305,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.4.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.4.0.exe` — exécutable portable
-- `Kyara-Bot-1.4.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.4.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.4.1.exe` — exécutable portable
+- `Kyara-Bot-1.4.1-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -322,8 +331,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push origin v1.4.1
 ```
 
 ---

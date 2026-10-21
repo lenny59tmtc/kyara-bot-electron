@@ -98,6 +98,30 @@ function serverLogPath() {
   return path.join(logsDir(), "server.log");
 }
 
+// Nettoie un profil Chromium laissé verrouillé par une mise à jour ou un arrêt
+// forcé : tue les Chromium Playwright résiduels puis retire les fichiers de verrou.
+function cleanupBrowserLocks() {
+  const profile = path.join(homeDir(), "profile");
+  if (process.platform === "win32") {
+    try {
+      const escaped = profile.replace(/'/g, "''");
+      const command =
+        `Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | ` +
+        `Where-Object { $_.CommandLine -like '*${escaped}*' } | ` +
+        `ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+      spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+        windowsHide: true,
+        timeout: 15000,
+      });
+    } catch {}
+  }
+  for (const name of ["SingletonLock", "SingletonCookie", "SingletonSocket", "DevToolsActivePort", "lockfile"]) {
+    try {
+      fs.rmSync(path.join(profile, name), { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mise à jour automatique (electron-updater)
 // ---------------------------------------------------------------------------
@@ -420,6 +444,8 @@ async function startServer() {
   serverPort = await findFreePort();
   serverLog = fs.createWriteStream(serverLogPath(), { flags: "a" });
   serverLog.write(`\n===== ${new Date().toISOString()} · démarrage serveur (port ${serverPort}) =====\n`);
+  serverLog.write(`[shell] nettoyage des verrous Chromium…\n`);
+  cleanupBrowserLocks();
 
   const proc = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: APP_ROOT,
@@ -765,6 +791,22 @@ function buildMenu() {
 // Démarrage / arrêt
 // ---------------------------------------------------------------------------
 
+async function startServerWithRetry() {
+  try {
+    await startServer();
+  } catch (error) {
+    try {
+      serverLog?.write(`[shell] échec du démarrage serveur : ${error?.stack || error}\n`);
+    } catch {}
+    try {
+      stopServer();
+    } catch {}
+    splashStatus("Nouvel essai de démarrage du serveur…", null);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await startServer();
+  }
+}
+
 async function bootstrap() {
   try {
     app.setPath("temp", appTmpDir());
@@ -777,19 +819,34 @@ async function bootstrap() {
       await installChromium();
     }
     splashStatus("Démarrage du serveur local et du bot…", null);
-    await startServer();
+    await startServerWithRetry();
     createMainWindow();
     closeSplash();
     initAutoUpdater();
   } catch (e) {
     closeSplash();
-    await dialog.showMessageBox({
+    let logTail = "";
+    try {
+      logTail = fs.readFileSync(serverLogPath(), "utf8").trim().split(/\r?\n/).slice(-30).join("\n");
+    } catch {}
+    const choice = await dialog.showMessageBox({
       type: "error",
       title: APP_TITLE,
       message: "Démarrage impossible.",
-      detail: String(e?.stack || e),
-      buttons: ["Quitter"],
+      detail: `${String(e?.message || e)}\n\nDernières lignes du serveur :\n${logTail || "(journal vide)"}`,
+      buttons: ["Réessayer", "Ouvrir le journal", "Quitter"],
+      defaultId: 0,
+      cancelId: 2,
     });
+    if (choice.response === 0) {
+      try {
+        app.relaunch();
+      } catch {}
+    } else if (choice.response === 1) {
+      try {
+        shell.openPath(serverLogPath());
+      } catch {}
+    }
     isQuitting = true;
     app.quit();
   }

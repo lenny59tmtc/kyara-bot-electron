@@ -1,5 +1,7 @@
 import { chromium } from "playwright";
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { PROFILE_DIR, loadConfig, saveConfig, RARITY_ORDER, RECYCLE_MIN } from "./config.js";
 import { appendOpening, appendBatch, buildBatchReport, isAlertRarity } from "./store.js";
 import { TradeWorker } from "./trades.js";
@@ -9,6 +11,7 @@ import { bus } from "./bus.js";
 
 const BASE = "https://kyara.games";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const PROFILE_LOCK_FILES = ["SingletonLock", "SingletonCookie", "SingletonSocket", "DevToolsActivePort", "lockfile"];
 
 export class KyaraBot {
   constructor() {
@@ -110,6 +113,132 @@ export class KyaraBot {
     return this.browserLaunch;
   }
 
+  async prepareBrowserProfile() {
+    // Tue un éventuel Chromium Playwright résiduel qui verrouille le profil
+    // (fréquent après une mise à jour ou un arrêt forcé), puis retire les verrous.
+    try {
+      if (process.platform === "win32") {
+        const profile = PROFILE_DIR.replace(/'/g, "''");
+        const command =
+          `Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | ` +
+          `Where-Object { $_.CommandLine -like '*${profile}*' } | ` +
+          `ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+        spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+          windowsHide: true,
+          timeout: 15000,
+        });
+      }
+    } catch {}
+    this.removeProfileLocks();
+  }
+
+  removeProfileLocks() {
+    for (const name of PROFILE_LOCK_FILES) {
+      try {
+        fs.rmSync(path.join(PROFILE_DIR, name), { recursive: true, force: true });
+      } catch {}
+    }
+  }
+
+  killProfileBrowsers() {
+    if (process.platform !== "win32") return;
+    try {
+      const profile = PROFILE_DIR.replace(/'/g, "''");
+      const command =
+        `Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | ` +
+        `Where-Object { $_.CommandLine -like '*${profile}*' } | ` +
+        `ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+      spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+        windowsHide: true,
+        timeout: 15000,
+      });
+    } catch {}
+  }
+
+  pruneProfileBackups() {
+    try {
+      const parent = path.dirname(PROFILE_DIR);
+      const prefix = `${path.basename(PROFILE_DIR)}.bak-`;
+      const backups = fs
+        .readdirSync(parent)
+        .filter((name) => name.startsWith(prefix))
+        .sort();
+      for (const old of backups.slice(0, Math.max(0, backups.length - 2))) {
+        try {
+          fs.rmSync(path.join(parent, old), { recursive: true, force: true });
+        } catch {}
+      }
+    } catch {}
+  }
+
+  async recoverBrowserProfile() {
+    this.log("warn", "Profil Chromium verrouillé ou inutilisable — sauvegarde puis réinitialisation");
+    this.killProfileBrowsers();
+    this.removeProfileLocks();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backup = `${PROFILE_DIR}.bak-${stamp}`;
+    let saved = false;
+    try {
+      fs.renameSync(PROFILE_DIR, backup);
+      saved = true;
+    } catch {
+      try {
+        fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
+      } catch {}
+    }
+    try {
+      fs.mkdirSync(PROFILE_DIR, { recursive: true });
+    } catch {}
+    this.pruneProfileBackups();
+    if (saved) {
+      this.log("warn", `Ancien profil sauvegardé dans ${backup} — une reconnexion Discord sera nécessaire`);
+    }
+  }
+
+  async launchBrowserWithWatchdog() {
+    const options = {
+      headless: false,
+      viewport: { width: 1280 + Math.floor(Math.random() * 160), height: 800 + Math.floor(Math.random() * 120) },
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-features=IsolateOrigins,site-per-process",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-session-crashed-bubble",
+        "--hide-crash-restore-bubble",
+        "--disable-crash-reporter",
+        "--disable-breakpad",
+      ],
+      locale: "fr-FR",
+      timezoneId: "Europe/Paris",
+      timeout: 30000,
+    };
+
+    let settled = false;
+    const launchPromise = chromium.launchPersistentContext(PROFILE_DIR, options);
+    launchPromise
+      .then((ctx) => {
+        if (settled) ctx.close().catch(() => {});
+      })
+      .catch(() => {});
+
+    let timer = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("browser_launch_timeout")), 35000);
+    });
+    try {
+      const ctx = await Promise.race([launchPromise, timeoutPromise]);
+      settled = true;
+      return ctx;
+    } catch (error) {
+      settled = true;
+      this.killProfileBrowsers();
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   async doEnsureBrowser() {
     if (this.context && !this.context.isClosed()) {
       if (!this.page || this.page.isClosed()) {
@@ -126,20 +255,16 @@ export class KyaraBot {
     this.log("info", "Ouverture du navigateur (profil persistant)…");
     let ctx = null;
     let launchError = null;
-    for (let attempt = 1; attempt <= 3 && !ctx; attempt++) {
+    for (let attempt = 1; attempt <= 2 && !ctx; attempt++) {
       try {
-        ctx = await chromium.launchPersistentContext(PROFILE_DIR, {
-          headless: false,
-          viewport: { width: 1280 + Math.floor(Math.random() * 160), height: 800 + Math.floor(Math.random() * 120) },
-          args: ["--disable-blink-features=AutomationControlled", "--disable-features=IsolateOrigins,site-per-process"],
-          locale: "fr-FR",
-          timezoneId: "Europe/Paris",
-        });
+        if (attempt === 1) await this.prepareBrowserProfile();
+        else await this.recoverBrowserProfile();
+        ctx = await this.launchBrowserWithWatchdog();
       } catch (e) {
         launchError = e;
         const first = String(e?.message || e).split("\n")[0];
-        this.log("warn", `Lancement du navigateur impossible (essai ${attempt}/3): ${first}`);
-        if (attempt < 3) await sleep(3000 + Math.random() * 2500);
+        this.log("warn", `Lancement du navigateur impossible (essai ${attempt}/2): ${first}`);
+        if (attempt < 2) await sleep(1200);
       }
     }
     if (!ctx) throw launchError;

@@ -79,9 +79,9 @@ export class SellerWorker {
     } catch {}
   }
 
-  async idle(ms) {
+  async idle(ms, stopIfDisabled = false) {
     let left = ms;
-    while (left > 0 && this.running && this.bot.config.autoSell === true) {
+    while (left > 0 && this.running && (!stopIfDisabled || this.bot.config.autoSell === true)) {
       const step = Math.min(left, 250);
       await sleep(step);
       left -= step;
@@ -184,7 +184,7 @@ export class SellerWorker {
             this.state.lastError = result?.message || result?.error || "vente refusée";
             this.bot.log("warn", `Ventes · échec pour ${row.name}: ${this.state.lastError}`);
             if (result?.error === "pass_required") {
-              await this.idle(15000);
+              await this.idle(15000, true);
               continue;
             }
             if (["not_listable", "already_listed", "guest_limit"].includes(result?.error)) {
@@ -197,12 +197,12 @@ export class SellerWorker {
           const max = Math.max(min, Number(cfgNow.sellDelayMax) || 90);
           const wait = Math.round((min + Math.random() * (max - min)) * 1000);
           this.state.nextAt = new Date(Date.now() + wait).toISOString();
-          await this.idle(wait);
+          await this.idle(wait, true);
         }
 
         this.state.phase = "idle";
         this.state.nextAt = new Date(Date.now() + 60000).toISOString();
-        await this.idle(60000);
+        await this.idle(60000, true);
       } catch (error) {
         this.state.phase = "error";
         this.state.lastError = error?.message || String(error);
