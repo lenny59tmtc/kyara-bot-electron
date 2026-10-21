@@ -7,6 +7,7 @@ import { bus } from "./bus.js";
 const HISTORY_PATH = path.join(DATA_DIR, "history.jsonl");
 const BATCH_PATH = path.join(DATA_DIR, "batches.jsonl");
 const TRADE_PATH = path.join(DATA_DIR, "trades.jsonl");
+const SALES_PATH = path.join(DATA_DIR, "sales.jsonl");
 
 function ensure() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -91,6 +92,93 @@ export function loadTrades(limit = 300) {
   } catch {
     return [];
   }
+}
+
+export function appendSale(entry) {
+  ensure();
+  const record = { id: crypto.randomUUID(), at: new Date().toISOString(), kind: "listed", ...entry };
+  fs.appendFileSync(SALES_PATH, JSON.stringify(record) + "\n");
+  bus.emit("sale", record);
+  return record;
+}
+
+export function loadSales(limit = 3000) {
+  try {
+    const lines = fs.readFileSync(SALES_PATH, "utf8").trim().split("\n").filter(Boolean);
+    return lines
+      .slice(-limit)
+      .reverse()
+      .map((l) => {
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export function saleStats(sales = []) {
+  const now = Date.now();
+  const hour = 3600 * 1000;
+  const day = 24 * hour;
+  const sold = sales.filter((s) => s.kind === "sold");
+  const listed = sales.filter((s) => s.kind !== "sold");
+  const priceOf = (s) => Number(s.price) || 0;
+  const sum = (rows) => rows.reduce((total, row) => total + priceOf(row), 0);
+  const since = (ms) => (s) => now - (Date.parse(s.at) || now) <= ms;
+
+  const lastHour = sold.filter(since(hour));
+  const last24h = sold.filter(since(day));
+  const todayKey = new Date().toDateString();
+  const today = sold.filter((s) => new Date(s.at).toDateString() === todayKey);
+
+  const byRarity = {};
+  for (const rarity of RARITY_ORDER) byRarity[rarity] = { count: 0, chakra: 0 };
+  for (const sale of sold) {
+    const bucket = byRarity[sale.rarity] || (byRarity[sale.rarity] = { count: 0, chakra: 0 });
+    bucket.count++;
+    bucket.chakra += priceOf(sale);
+  }
+
+  const hourStart = new Date();
+  hourStart.setMinutes(0, 0, 0);
+  const buckets = [];
+  for (let i = 23; i >= 0; i--) {
+    const start = new Date(hourStart.getTime() - i * hour);
+    const end = new Date(start.getTime() + hour);
+    const rows = sold.filter((s) => {
+      const t = Date.parse(s.at) || 0;
+      return t >= start.getTime() && t < end.getTime();
+    });
+    buckets.push({
+      at: start.toISOString(),
+      label: `${String(start.getHours()).padStart(2, "0")}:00`,
+      chakra: sum(rows),
+      sales: rows.length,
+    });
+  }
+
+  return {
+    totalSold: sold.length,
+    totalChakra: sum(sold),
+    totalListed: listed.length,
+    todayChakra: sum(today),
+    todaySales: today.length,
+    lastHourChakra: sum(lastHour),
+    lastHourSales: lastHour.length,
+    last24hChakra: sum(last24h),
+    last24hSales: last24h.length,
+    avgPerHour24: Math.round(sum(last24h) / 24),
+    avgPerSale: sold.length ? Math.round(sum(sold) / sold.length) : 0,
+    byRarity,
+    buckets,
+    recent: sold.slice(0, 40),
+    lastAt: sold[0]?.at ?? null,
+  };
 }
 
 export function tradeStats(trades) {

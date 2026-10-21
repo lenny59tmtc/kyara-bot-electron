@@ -176,18 +176,20 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | Méthode | Route | Description |
 |---|---|---|
 | GET | `/` | Tableau de bord (historique, stats, config, journal) |
-| GET | `/api/state` | État du bot : `running`, `pseudo`, `freePacks`, `nextFreeAt`, `batch`, `lastError`, `log` |
+| GET | `/api/state` | État du bot : `running`, `pseudo`, `freePacks`, `nextFreeAt`, `batch`, `lastError`, `log`, `sell` |
 | GET | `/api/history?limit=100` | Ouvertures (du plus récent au plus ancien) + stats |
 | GET | `/api/batches?limit=30` | Comptes rendus des multi-ouvertures |
 | GET | `/api/trades?limit=200` | Échanges : `{trades, buckets, stats, auto, state}` (`buckets` = tranches de 10 min) |
+| GET | `/api/sales` | Ventes : `{stats, history, seller, auto}` — stats chakra/gagné (24 h, 60 min, moyenne/h, tranches horaires) |
 | GET | `/api/config` | Configuration actuelle |
-| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto }` |
+| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax }` |
+| POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/start` | Démarre le bot |
 | POST | `/api/bot/stop` | Arrête le bot |
-| GET | `/events` | SSE : `state`, `log`, `opening`, `batch`, `trade` |
+| GET | `/events` | SSE : `state`, `log`, `opening`, `batch`, `trade`, `sale` |
 
-Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.jsonl`, `data/config.json`,
-`profile/` (session navigateur).
+Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.jsonl`, `data/sales.jsonl`,
+`data/config.json`, `profile/` (session navigateur).
 
 ### Moteur d'échanges (`src/trades.js`)
 
@@ -198,3 +200,18 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   puis accepte les boutons « Donner X » (180–520 ms entre chaque) en attendant la réponse `POST /trades/offers/:id/accept`.
 - Chaque échange validé est écrit dans `data/trades.jsonl` et poussé en SSE (`type: "trade"`), agrégé par tranches de 10 min dans le dashboard.
 - `POST /api/config` avec `tradesAuto: false` met le moteur en veille sans l'arrêter.
+
+### Moteur de vente automatique (`src/seller.js`)
+
+- **Désactivé par défaut** (`config.autoSell === false`, UI et fichier de configuration).
+- Paramètres : `sellMaxRarity` (C/U/R/E/L/M), `sellPricing` (`fast` | `normal` | `patient`),
+  `sellDelayMin` / `sellDelayMax` (secondes, 5–600), `saleType` / `saleDurationHours` pour l'annonce.
+- Cycle : analyse `/api/me/collection` + marché (`getDuplicates`), ne garde que les doublons **vendables**,
+  d'une rareté ≤ `sellMaxRarity`, puis crée une annonce par doublon avec le prix calculé par la stratégie :
+  `fast` = 75 % du prix conseillé, `normal` = prix conseillé (sous l'annonce la plus basse / médiane),
+  `patient` = médiane +8 % (plafonnée à l'annonce la plus basse). Délai aléatoire entre chaque annonce.
+- `GET /api/me/market` est analysé périodiquement : les annonces `status: "sold"` sont écrites dans
+  `data/sales.jsonl` (`kind: "sold"`, `finalPrice`) → chakra réellement gagné pour le bilan ; `kind: "listed"`
+  trace les mises en vente. Un premier scan mémorise les ventes déjà soldées sans les compter (bilan démarré
+  à l'activation).
+- Les ventes manuelles (`POST /api/sell`) alimentent aussi le bilan.

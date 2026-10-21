@@ -7,6 +7,16 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.4.0
+
+- **Vente automatique des doublons**, **désactivée par défaut**, avec réglages dans le panneau Configuration :
+  rareté maximale à vendre, stratégie de prix (Vite / Normal / Patient) et délai aléatoire min/max entre deux ventes.
+- **Bilan chakra** dans un nouvel onglet **Ventes & bilan** : chakra gagné sur 24 h / 60 min / moyenne par heure,
+  graphique des 24 dernières heures, ventes récentes et journal des ventes.
+- Le moteur détecte les annonces réellement **soldées** (`/me/market`) pour compter le chakra gagné, y compris les
+  ventes manuelles.
+- **Interface responsive** : onglets, badges, tableaux et graphiques adaptés aux écrans mobiles/tablettes.
+
 ## Nouveautés de la version 1.3.0
 
 - **Mise à jour automatique** : `electron-updater` vérifie les Releases au lancement puis toutes les 4 h,
@@ -55,6 +65,7 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 - [Téléchargement](#téléchargement)
 - [Installation (utilisateur final)](#installation-utilisateur-final)
 - [Premier démarrage et connexion](#premier-démarrage-et-connexion)
+- [Vente automatique des doublons et bilan chakra](#vente-automatique-des-doublons-et-bilan-chakra)
 - [Signature Windows et Defender](#signature-windows-et-defender)
 - [Où sont stockées les données](#où-sont-stockées-les-données)
 - [Menu et barre de notification](#menu-et-barre-de-notification)
@@ -123,6 +134,8 @@ que si la session expire.
 - Le réglage **« Ouverture automatique des boosters »** permet de suspendre/relancer les ouvertures sans arrêter le bot.
 - Les **échanges automatiques sont désactivés par défaut** ; ils se désactivent aussi automatiquement si le compte
   ne contient plus aucun doublon. Active-les depuis l'onglet **Échanges**.
+- La **vente automatique des doublons est désactivée par défaut** : active-la dans la **Configuration** (rareté max,
+  stratégie de prix, délai aléatoire) et suis le **bilan chakra** dans l'onglet **Ventes & bilan**.
 - La **mise à jour est automatique** : téléchargement en arrière-plan puis installation à la fermeture, ou
   clic sur « Mise à jour prête — Redémarrer » pour l'installer immédiatement.
 - Fermer la fenêtre **ne quitte pas** l'application : elle se réduit dans la zone de notification
@@ -140,6 +153,31 @@ que si la session expire.
 - Les versions **portable** et **ZIP** ne peuvent pas s'auto-remplacer : le bouton ouvre alors la page de téléchargement
   (mise à jour manuelle).
 - Journaux : `logs/updater.log`. Chaque Release publie `latest.yml` (manifeste de mise à jour).
+
+---
+
+## Vente automatique des doublons et bilan chakra
+
+La vente automatique est **désactivée par défaut**. Elle se configure dans le panneau **Configuration** de l'onglet
+**Ouvertures** :
+
+| Réglage | Valeur par défaut | Description |
+|---|---|---|
+| Vente automatique activée | **désactivée** | Interrupteur principal |
+| Rareté maximale des doublons | **Rare** | Vend les doublons jusqu'à cette rareté (Commun → Mythique) |
+| Stratégie de prix | **Normal** | `Vite` = 75 % du prix conseillé, `Normal` = prix conseillé, `Patient` = médiane +8 % |
+| Délai aléatoire entre deux ventes | **30 à 90 s** | Min/max en secondes (5–600) |
+| Type / durée d'annonce | vente directe, 12 h | Réutilise les réglages existants |
+
+Fonctionnement :
+
+- Le moteur (`src/seller.js`) analyse la collection et le marché, ne garde que les doublons **vendables** dans la
+  limite de rareté, puis met un doublon en vente à la fois avec un délai aléatoire entre chaque annonce.
+- Les annonces `status: "sold"` sont détectées via `/me/market` : le chakra **réellement gagné** est enregistré dans
+  `data/sales.jsonl` (la première analyse mémorise les ventes déjà soldées pour ne pas fausser le bilan).
+- L'onglet **Ventes & bilan** affiche : chakra gagné sur 24 h, chakra/h (60 min), moyenne horaire sur 24 h, total,
+  ventes soldées, annonces actives, chakra en attente, un graphique des 24 dernières heures et les ventes récentes.
+- Les ventes manuelles depuis l'onglet **Doublons à vendre** alimentent aussi le bilan.
 
 ---
 
@@ -258,9 +296,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.3.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.3.0.exe` — exécutable portable
-- `Kyara-Bot-1.3.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.4.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.4.0.exe` — exécutable portable
+- `Kyara-Bot-1.4.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -284,8 +322,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 ---
@@ -326,12 +364,13 @@ git push origin v1.3.0
 │  ├─ server.js         # API locale + tableau de bord (http://127.0.0.1:<port>)
 │  ├─ bot.js            # boucle d'ouverture de boosters (Playwright)
 │  ├─ trades.js         # moteur d'échanges sur /marche?onglet=offres
+│  ├─ seller.js         # vente automatique des doublons (rareté, pricing, délai aléatoire)
 │  ├─ human.js          # clics « humanisés » (trajets souris, temporisations)
 │  ├─ market.js         # estimation des prix / doublons
 │  ├─ update.js         # vérification GitHub + état de la mise à jour automatique (electron-updater)
-│  ├─ store.js          # historiques JSONL
+│  ├─ store.js          # historiques JSONL (ouvertures, échanges, ventes, stats chakra)
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
-├─ public/index.html    # interface du tableau de bord (progression et redémarrage des mises à jour)
+├─ public/index.html    # interface responsive : onglets, vente auto, bilan chakra, mises à jour
 ├─ scripts/
 │  ├─ install-code-signing-cert.ps1  # installe les certificats publics de signature
 │  ├─ sign-windows.ps1               # signe les builds locaux

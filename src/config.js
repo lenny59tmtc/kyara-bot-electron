@@ -46,6 +46,12 @@ const DEFAULTS = {
   saleType: "fixed",
   saleDurationHours: 12,
   tradesAuto: false,
+  // Vente automatique des doublons — désactivée par défaut.
+  autoSell: false,
+  sellMaxRarity: "R",
+  sellPricing: "normal",
+  sellDelayMin: 30,
+  sellDelayMax: 90,
 };
 
 export const RECYCLE_MIN = { C: 1, U: 1, R: 3, E: 10, L: 40, M: 150 };

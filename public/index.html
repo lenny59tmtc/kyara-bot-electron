@@ -38,6 +38,7 @@
     background: var(--panel2); border: 1px solid var(--line); border-radius: 999px;
     padding: 6px 14px; font-size: 13px; color: var(--dim);
   }
+  .pill-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .pill b { color: var(--txt); }
   button {
     background: var(--acc); color: #fff; border: 0; border-radius: 10px;
@@ -201,23 +202,103 @@
   .app-footer .footer-ico { width: 18px; height: 18px; border-radius: 5px; opacity: .9; }
   .app-footer b { color: var(--acc2); font-variant-numeric: tabular-nums; }
   .app-footer .fsep { opacity: .5; }
+
+  /* --- Vente automatique & bilan chakra --- */
+  .cfg-title {
+    margin: 8px 0 0; padding-top: 12px; border-top: 1px solid var(--line);
+    color: var(--acc2); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px;
+  }
+  .cfg-note { margin: 0; line-height: 1.4; }
+  .badge-auto {
+    font-size: 11px; font-weight: 800; border-radius: 999px; padding: 4px 10px;
+    border: 1px solid var(--line); background: var(--panel2); color: var(--dim); white-space: nowrap;
+  }
+  .badge-auto.on { background: linear-gradient(135deg, var(--acc), #b62d6d); border-color: transparent; color: #fff; }
+  .sell-hero { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .chart {
+    display: flex; align-items: flex-end; gap: 4px; height: 160px;
+    padding-top: 8px; border-bottom: 1px solid var(--line);
+  }
+  .chart .cbar {
+    flex: 1 1 0; min-width: 0; height: 100%;
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px;
+  }
+  .chart .cbar i {
+    display: block; width: 100%; min-height: 2px; border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, var(--acc2), var(--acc)); opacity: .9;
+  }
+  .chart .cbar span { font-size: 9px; color: var(--dim); white-space: nowrap; }
+  .chart-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--dim); }
+  .sell-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #211e29; }
+  .sell-item:last-child { border-bottom: 0; }
+  .sell-item .si-main { flex: 1; min-width: 0; }
+  .sell-item .si-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sell-item .si-sub { color: var(--dim); font-size: 11px; }
+  .sell-item .si-price { font-weight: 800; color: var(--gold); white-space: nowrap; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #dupTable { overflow-x: auto; }
+  #dupTable table { min-width: 1120px; }
+  main { max-width: 1700px; margin: 0 auto; width: 100%; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+
+  @media (max-width: 1180px) {
+    main { grid-template-columns: 1fr; }
+    aside { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 18px; align-items: start; }
+  }
+  @media (min-width: 1181px) {
+    main { grid-template-columns: minmax(0, 1fr) 380px; }
+  }
+  @media (max-width: 760px) {
+    header {
+      display: grid; grid-template-columns: 1fr auto; grid-template-areas: "brand toggle" "pills pills" "tabs tabs";
+      align-items: center; padding: 12px; gap: 10px;
+    }
+    .brand { grid-area: brand; font-size: 18px; }
+    #toggle { grid-area: toggle; }
+    .spacer { display: none; }
+    .pill { font-size: 11px; padding: 4px 10px; }
+    .pill-row { grid-area: pills; width: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+    .pill-row .pill { flex: none; }
+    nav.tabs { grid-area: tabs; width: 100%; flex-wrap: wrap; overflow: visible; padding-bottom: 0; }
+    nav.tabs button { flex: 1 1 auto; padding: 8px 10px; font-size: 12px; }
+    main { padding: 12px; gap: 12px; }
+    .panel { padding: 13px; border-radius: 12px; }
+    .login-banner { margin: 10px 12px 0; padding: 12px; flex-wrap: wrap; }
+    .login-banner button { width: 100%; }
+    .chart { height: 130px; }
+    .app-footer { font-size: 10px; gap: 6px; flex-wrap: wrap; padding: 8px 12px; }
+    .app-footer span:last-child { display: none; }
+    #toast { left: 12px; right: 12px; bottom: 128px; text-align: center; }
+    .update-btn { right: 12px; bottom: 62px; font-size: 12px; padding: 10px 14px; }
+  }
+  @media (max-width: 520px) {
+    .brand-ico { width: 28px; height: 28px; }
+    header .pill.ver { display: none; }
+    main { padding: 10px; }
+    .chart .cbar span { display: none; }
+    .stats { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><img class="brand-ico" src="/icon.png" alt="Kyara Bot" /> <span>Kyara</span> Bot</div>
-  <div class="pill ver">v<b id="ver">—</b></div>
-  <div class="pill"><span class="dot" id="dot"></span><span id="status">démarrage…</span></div>
-  <div class="pill" id="user">—</div>
-  <div class="pill">Boosters gratuits: <b id="free">—</b></div>
-  <div class="pill">Échanges: <b id="tradeCount">—</b></div>
-  <div class="pill" id="batchPill" style="display:none">Multi: <b id="batchProg">—</b></div>
-  <div class="pill">Prochain: <b id="next">—</b></div>
+  <div class="pill-row">
+    <div class="pill ver">v<b id="ver">—</b></div>
+    <div class="pill"><span class="dot" id="dot"></span><span id="status">démarrage…</span></div>
+    <div class="pill" id="user">—</div>
+    <div class="pill">Boosters gratuits: <b id="free">—</b></div>
+    <div class="pill">Échanges: <b id="tradeCount">—</b></div>
+    <div class="pill">Chakra/h: <b id="chakraHour">—</b></div>
+    <div class="pill" id="batchPill" style="display:none">Multi: <b id="batchProg">—</b></div>
+    <div class="pill">Prochain: <b id="next">—</b></div>
+  </div>
   <div class="spacer"></div>
   <nav class="tabs">
     <button id="tabOpen" class="on">Ouvertures</button>
     <button id="tabDup">Doublons à vendre</button>
     <button id="tabTrade">Échanges</button>
+    <button id="tabSell">Ventes & bilan</button>
   </nav>
   <button id="toggle">Arrêter</button>
 </header>
@@ -246,7 +327,7 @@
   </section>
 
   <aside>
-    <div class="panel" style="margin-bottom:18px">
+    <div class="panel" style="margin-bottom:18px" id="configPanel">
       <h2>Configuration</h2>
       <div class="cfg">
         <label>Booster gratuit à ouvrir
@@ -287,7 +368,39 @@
           <span class="switch"><input type="checkbox" id="sound" /><span class="slider"></span></span>
         </label>
         <button class="ghost" id="testSound">Tester le son</button>
-        <label>Vente des doublons
+        <div class="cfg-title">Vente automatique des doublons</div>
+        <label class="switch-row">
+          <span>Vente automatique activée</span>
+          <span class="switch"><input type="checkbox" id="autoSell" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          Désactivée par défaut. Les doublons éligibles sont mis en vente un par un avec un délai aléatoire.
+        </p>
+        <label>Rareté maximale des doublons à vendre
+          <select id="sellMaxRarity">
+            <option value="C">Commun</option>
+            <option value="U">Peu commun</option>
+            <option value="R">Rare</option>
+            <option value="E">Épique</option>
+            <option value="L">Légendaire</option>
+            <option value="M">Mythique</option>
+          </select>
+        </label>
+        <label>Stratégie de prix
+          <select id="sellPricing">
+            <option value="fast">Vite — prix bas, vente rapide</option>
+            <option value="normal">Normal — prix conseillé</option>
+            <option value="patient">Patient — prix plus haut</option>
+          </select>
+        </label>
+        <label>Délai aléatoire entre deux ventes (secondes)
+          <div class="row">
+            <input type="number" id="sellDelayMin" min="5" max="600" step="5" />
+            <span>et</span>
+            <input type="number" id="sellDelayMax" min="5" max="600" step="5" />
+          </div>
+        </label>
+        <label>Type d'annonce
           <div class="row">
             <select id="saleType">
               <option value="fixed">Vente directe (prix fixe)</option>
@@ -381,6 +494,58 @@
     <div class="panel">
       <h2>Journal des échanges</h2>
       <div class="log" id="tradeLog"></div>
+    </div>
+  </aside>
+</main>
+
+<main id="viewSell" style="display:none">
+  <section>
+    <div class="panel">
+      <div class="ohead">
+        <h2 style="margin:0">Bilan chakra des ventes</h2>
+        <div class="spacer"></div>
+        <span class="badge-auto" id="sellBadge">désactivée</span>
+        <span class="sub2" id="sellAt"></span>
+      </div>
+      <div class="stats" id="sellStats"></div>
+
+      <div class="panel" style="background:var(--panel2);border-color:var(--line);padding:12px;margin-bottom:16px">
+        <div class="row" style="margin-bottom:6px">
+          <div class="sub2">Chakra gagné par heure — dernières 24 h</div>
+          <div class="spacer"></div>
+          <span class="sub2" id="sellChartMax"></span>
+        </div>
+        <div class="chart" id="sellChart"></div>
+        <div class="chart-legend"><span>il y a 24 h</span><span>maintenant</span></div>
+      </div>
+
+      <div class="ohead">
+        <h2 style="margin:0">Ventes récentes</h2>
+        <div class="spacer"></div>
+        <button class="ghost" id="sellRefresh">Rafraîchir</button>
+      </div>
+      <div id="sellList"><div class="empty">Aucune vente pour l'instant</div></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Vente automatique</h2>
+      <div class="cfg">
+        <div class="sell-hero">
+          <span class="badge-auto" id="sellBadge2">désactivée</span>
+          <span class="sub2" id="sellState">—</span>
+        </div>
+        <p class="sub2" style="margin:0" id="sellHint">
+          Active la vente automatique dans le panneau Configuration (onglet Ouvertures).
+        </p>
+        <div class="sub2" id="sellNext"></div>
+        <div class="row"><button class="ghost" id="sellConfigBtn">Configurer la vente</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Journal des ventes</h2>
+      <div class="log" id="sellLog"></div>
     </div>
   </aside>
 </main>
@@ -581,6 +746,8 @@ function renderState() {
   renderTradeStatus(state.trade);
   renderLog(state.log || []);
   renderTradeLog(state.log || []);
+  renderSellStatus();
+  renderSellLog();
 }
 
 function renderTradeStatus(t) {
@@ -682,6 +849,7 @@ async function refreshBatches() {
 }
 
 let tradeData = null;
+let sellData = null;
 
 async function refreshTrades() {
   try {
@@ -762,6 +930,139 @@ function renderTradeList(trades) {
     .join("");
 }
 
+async function refreshSales() {
+  try {
+    const response = await fetch("/api/sales");
+    sellData = await response.json();
+    renderSales(sellData);
+  } catch {}
+}
+
+function renderSales(data) {
+  if (!data) return;
+  const stats = data.stats || {};
+  const seller = data.seller || state?.sell || {};
+  const cards = [
+    ["Chakra gagné (24 h)", `${stats.last24hChakra ?? 0} ⚡`],
+    ["Chakra / h (60 min)", `${stats.lastHourChakra ?? 0} ⚡`],
+    ["Moyenne / h (24 h)", `${stats.avgPerHour24 ?? 0} ⚡`],
+    ["Aujourd'hui", `${stats.todayChakra ?? 0} ⚡`],
+    ["Ventes (24 h)", stats.last24hSales ?? 0],
+    ["Total gagné", `${stats.totalChakra ?? 0} ⚡`],
+    ["Annonces actives", seller.activeListings ?? 0],
+    ["En attente", `${seller.pendingChakra ?? 0} ⚡`],
+  ];
+  $("sellStats").innerHTML = cards
+    .map(([key, value]) => `<div class="stat"><div class="v">${escapeHtml(String(value))}</div><div class="k">${key}</div></div>`)
+    .join("");
+  $("sellAt").textContent = stats.lastAt ? `dernière vente ${fmtTime(stats.lastAt)}` : "aucune vente détectée";
+  $("chakraHour").textContent = `${stats.lastHourChakra ?? 0} ⚡`;
+  renderSellChart(stats.buckets || []);
+  renderSellList(data.history || []);
+  renderSellStatus();
+  renderSellLog();
+}
+
+function renderSellChart(buckets) {
+  const max = Math.max(1, ...buckets.map((bucket) => Number(bucket.chakra) || 0));
+  if ($("sellChartMax")) $("sellChartMax").textContent = `max ${max} ⚡ / h`;
+  $("sellChart").innerHTML = buckets.length
+    ? buckets
+        .map((bucket) => {
+          const height = Math.max(2, Math.round(((Number(bucket.chakra) || 0) / max) * 100));
+          return `<div class="cbar" title="${escapeHtml(bucket.label)} · ${bucket.chakra} ⚡ · ${bucket.sales} vente(s)"><i style="height:${height}%"></i><span>${escapeHtml(bucket.label)}</span></div>`;
+        })
+        .join("")
+    : '<div class="empty" style="font-size:12px;padding:20px 0">Aucune vente sur les dernières 24 h</div>';
+}
+
+function renderSellList(history) {
+  const sold = (history || []).filter((entry) => entry.kind === "sold");
+  if (!sold.length) {
+    $("sellList").innerHTML = '<div class="empty">Aucune vente soldée pour l\'instant</div>';
+    return;
+  }
+  $("sellList").innerHTML = sold
+    .slice(0, 40)
+    .map((sale) => {
+      const [label, color] = RARITY[sale.rarity] || [sale.rarity || "?", "#888"];
+      const strategy = { fast: "Vite", normal: "Normal", patient: "Patient", manual: "Manuel" }[sale.strategy] || "—";
+      return `<div class="sell-item">
+        <span class="chip" style="background:${color}">${label}</span>
+        <div class="si-main">
+          <div class="si-name">${escapeHtml(sale.name || "?")}</div>
+          <div class="si-sub">${fmtTime(sale.at)} · ${strategy}</div>
+        </div>
+        <span class="si-price">+${Number(sale.price) || 0} ⚡</span>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderSellStatus() {
+  const seller = state?.sell || sellData?.seller || {};
+  const cfg = state?.config || config || {};
+  const enabled = cfg.autoSell === true;
+  const phase = seller?.phase || (enabled ? "idle" : "disabled");
+  [$("sellBadge"), $("sellBadge2")].forEach((badge) => {
+    if (!badge) return;
+    badge.textContent = enabled ? "activée" : "désactivée";
+    badge.classList.toggle("on", enabled);
+  });
+  const labels = {
+    disabled: "vente automatique désactivée",
+    waiting_login: "en attente de connexion",
+    scan: "analyse des doublons…",
+    selling: "mise en vente en cours",
+    idle: "en veille — aucun doublon éligible",
+    error: `erreur : ${seller?.lastError || "inconnue"}`,
+  };
+  if ($("sellState")) {
+    let stateText = labels[phase] || phase || "—";
+    if (!enabled) stateText = "désactivée";
+    else if (state?.running === false) stateText = "bot arrêté — démarre le bot";
+    else if (phase === "disabled") stateText = "en attente d'activation";
+    $("sellState").textContent = stateText;
+  }
+  if ($("sellHint")) {
+    const rarity = RARITY[cfg.sellMaxRarity]?.[0] || cfg.sellMaxRarity || "Rare";
+    const pricing = { fast: "Vite", normal: "Normal", patient: "Patient" }[cfg.sellPricing] || "Normal";
+    $("sellHint").textContent = enabled
+      ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s`
+      : "Active la vente automatique dans le panneau Configuration (onglet Ouvertures).";
+  }
+  updateSellCountdown();
+}
+
+function updateSellCountdown() {
+  const el = $("sellNext");
+  if (!el) return;
+  const seller = state?.sell || {};
+  if (state?.config?.autoSell !== true) {
+    el.textContent = "";
+    return;
+  }
+  const parts = [
+    `${seller.activeListings ?? 0} annonce(s) active(s)`,
+    `${seller.pendingChakra ?? 0} ⚡ en attente`,
+  ];
+  if (seller.nextAt) {
+    const remaining = new Date(seller.nextAt).getTime() - Date.now();
+    if (remaining > 0) parts.push(`prochaine action dans ${Math.ceil(remaining / 1000)} s`);
+  }
+  if (seller.lastError) parts.push(`erreur : ${seller.lastError}`);
+  el.textContent = parts.join(" · ");
+}
+
+function renderSellLog() {
+  const entries = (state?.log || []).filter((entry) => String(entry.msg || "").startsWith("Ventes ·"));
+  $("sellLog").innerHTML = entries.length
+    ? entries
+        .map((entry) => `<div class="${entry.level}">${fmtTime(entry.at)} · ${escapeHtml(entry.msg.replace(/^Ventes · /, ""))}</div>`)
+        .join("")
+    : '<div class="sub2">Aucune activité de vente pour l\'instant</div>';
+}
+
 function renderStats(stats) {
   const s = stats || {};
   $("stats").innerHTML = [
@@ -798,6 +1099,11 @@ function applyConfig(c) {
   $("saleType").value = c.saleType || "fixed";
   $("saleDuration").value = String(c.saleDurationHours ?? 12);
   $("tradesAuto").checked = c.tradesAuto === true;
+  $("autoSell").checked = c.autoSell === true;
+  $("sellMaxRarity").value = c.sellMaxRarity || "R";
+  $("sellPricing").value = c.sellPricing || "normal";
+  $("sellDelayMin").value = c.sellDelayMin ?? 30;
+  $("sellDelayMax").value = c.sellDelayMax ?? 90;
 }
 
 $("toggle").addEventListener("click", async () => {
@@ -824,9 +1130,16 @@ $("save").addEventListener("click", async () => {
       batchMax: Number($("batchMax").value) || 8,
       saleType: $("saleType").value,
       saleDurationHours: Number($("saleDuration").value) || 12,
+      autoSell: $("autoSell").checked,
+      sellMaxRarity: $("sellMaxRarity").value,
+      sellPricing: $("sellPricing").value,
+      sellDelayMin: Number($("sellDelayMin").value) || 30,
+      sellDelayMax: Number($("sellDelayMax").value) || 90,
     }),
   });
   applyConfig(await r.json());
+  refreshSales();
+  renderSellStatus();
   toast("Configuration enregistrée");
 });
 
@@ -871,6 +1184,12 @@ es.onmessage = (ev) => {
     refreshTrades();
     return;
   }
+  if (msg.type === "sale") {
+    const sale = msg.sale || {};
+    if (sale.kind === "sold") toast(`Vente : ${sale.name || "carte"} +${sale.price || 0} ⚡`);
+    refreshSales();
+    return;
+  }
   if (msg.type === "opening") {
     const e = msg.entry;
     const isAlert = e.golden || e.godPack || (e.cards || []).some((c) => ORDER.indexOf(c.rarity) >= 4);
@@ -889,23 +1208,33 @@ let dupSort = { key: "value", dir: -1 };
 function switchTab(name) {
   const isDup = name === "dup";
   const isTrade = name === "trade";
-  $("viewOpen").style.display = isDup || isTrade ? "none" : "";
+  const isSell = name === "sell";
+  $("viewOpen").style.display = isDup || isTrade || isSell ? "none" : "";
   $("viewDup").style.display = isDup ? "" : "none";
   $("viewTrade").style.display = isTrade ? "" : "none";
-  $("tabOpen").classList.toggle("on", !isDup && !isTrade);
+  $("viewSell").style.display = isSell ? "" : "none";
+  $("tabOpen").classList.toggle("on", !isDup && !isTrade && !isSell);
   $("tabDup").classList.toggle("on", isDup);
   $("tabTrade").classList.toggle("on", isTrade);
+  $("tabSell").classList.toggle("on", isSell);
   if (isDup && !dupData) loadDuplicates();
   if (isTrade) refreshTrades();
+  if (isSell) refreshSales();
 }
 
 $("tabOpen").addEventListener("click", () => switchTab("open"));
 $("tabDup").addEventListener("click", () => switchTab("dup"));
 $("tabTrade").addEventListener("click", () => switchTab("trade"));
+$("tabSell").addEventListener("click", () => switchTab("sell"));
 $("dupRefresh").addEventListener("click", () => loadDuplicates(true));
 $("dupQ").addEventListener("input", renderDup);
 $("dupRarity").addEventListener("change", renderDup);
 $("dupSellable").addEventListener("change", renderDup);
+$("sellRefresh").addEventListener("click", () => refreshSales());
+$("sellConfigBtn").addEventListener("click", () => {
+  switchTab("open");
+  setTimeout(() => $("configPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+});
 
 async function loadDuplicates(refresh = false) {
   $("dupTable").innerHTML = '<div class="empty">Analyse du marché en cours (peut prendre ~20 s)…</div>';
@@ -1064,6 +1393,7 @@ async function sellRow(characterId, price, btn) {
     toast(`✔ ${row.name} mis en vente à ${out.price} ⚡ (${out.type === "auction" ? "enchère" : "vente directe"} ${out.durationHours} h)`);
     row.state = "déjà en vente";
     renderDup();
+    refreshSales();
   } catch (e) {
     toast(`Erreur: ${e.message}`);
     if (btn) {
@@ -1096,10 +1426,13 @@ async function tickNext() {
   await refreshHistory();
   await refreshBatches();
   await refreshTrades();
+  await refreshSales();
   setInterval(tickNext, 1000);
   tickNext();
   setInterval(refreshHistory, 30000);
   setInterval(refreshTrades, 30000);
+  setInterval(refreshSales, 15000);
+  setInterval(updateSellCountdown, 1000);
   // Vérification fréquente pour afficher la progression du téléchargement auto.
   setInterval(refreshUpdate, 10000);
 })();

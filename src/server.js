@@ -1,8 +1,8 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLIC_DIR, loadConfig, saveConfig } from "./config.js";
-import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats } from "./store.js";
+import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
+import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
 import { getDuplicates, clearMarketCache } from "./market.js";
 import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart } from "./update.js";
 import { bus } from "./bus.js";
@@ -64,6 +64,15 @@ export function createServer(bot) {
         state: bot.trades?.snapshot() ?? null,
       });
     }
+    if (url.pathname === "/api/sales") {
+      const sales = loadSales(3000);
+      return json(res, {
+        stats: saleStats(sales),
+        history: sales.slice(0, 300),
+        seller: bot.seller?.snapshot() ?? null,
+        auto: bot.config?.autoSell === true,
+      });
+    }
     if (url.pathname === "/api/duplicates") {
       try {
         if (url.searchParams.get("refresh") === "1") clearMarketCache();
@@ -88,6 +97,19 @@ export function createServer(bot) {
           durationHours: body.durationHours,
           name: body.name,
         });
+        if (out?.ok) {
+          appendSale({
+            kind: "listed",
+            listingId: out.listing?.id ?? null,
+            characterId: Number(characterId),
+            name: body.name || `#${characterId}`,
+            rarity: body.rarity,
+            price: out.price,
+            strategy: "manual",
+            type: out.type,
+            durationHours: out.durationHours,
+          });
+        }
         return json(res, out);
       } catch (e) {
         return json(res, { error: e?.message || String(e) });
@@ -106,6 +128,22 @@ export function createServer(bot) {
       if ([12, 24, 48].includes(Number(body.saleDurationHours))) patch.saleDurationHours = Number(body.saleDurationHours);
       if (typeof body.tradesAuto === "boolean") patch.tradesAuto = body.tradesAuto;
       if (typeof body.autoOpen === "boolean") patch.autoOpen = body.autoOpen;
+      if (typeof body.autoSell === "boolean") patch.autoSell = body.autoSell;
+      if (RARITY_ORDER.includes(body.sellMaxRarity)) patch.sellMaxRarity = body.sellMaxRarity;
+      if (["fast", "normal", "patient"].includes(body.sellPricing)) patch.sellPricing = body.sellPricing;
+      if (typeof body.sellDelayMin === "number") {
+        patch.sellDelayMin = Math.min(Math.max(Math.round(body.sellDelayMin), 5), 600);
+      }
+      if (typeof body.sellDelayMax === "number") {
+        patch.sellDelayMax = Math.min(Math.max(Math.round(body.sellDelayMax), 5), 600);
+      }
+      if (patch.sellDelayMin != null || patch.sellDelayMax != null) {
+        const current = loadConfig();
+        const min = patch.sellDelayMin ?? current.sellDelayMin;
+        const max = patch.sellDelayMax ?? current.sellDelayMax;
+        patch.sellDelayMin = Math.min(min, max);
+        patch.sellDelayMax = Math.max(min, max);
+      }
       if (patch.batchMin && !patch.batchMax) {
         const cur = loadConfig();
         if (cur.batchMax < patch.batchMin) patch.batchMax = patch.batchMin;
@@ -136,11 +174,13 @@ export function createServer(bot) {
       const onLog = (l) => res.write(`data: ${JSON.stringify({ type: "log", entry: l })}\n\n`);
       const onBatch = (b) => res.write(`data: ${JSON.stringify({ type: "batch", batch: b })}\n\n`);
       const onTrade = (t) => res.write(`data: ${JSON.stringify({ type: "trade", trade: t })}\n\n`);
+      const onSale = (s) => res.write(`data: ${JSON.stringify({ type: "sale", sale: s })}\n\n`);
       bus.on("opening", onOpening);
       bus.on("state", onState);
       bus.on("log", onLog);
       bus.on("batch", onBatch);
       bus.on("trade", onTrade);
+      bus.on("sale", onSale);
       const ping = setInterval(() => res.write(`: ping\n\n`), 25000);
       req.on("close", () => {
         clearInterval(ping);
@@ -149,6 +189,7 @@ export function createServer(bot) {
         bus.off("log", onLog);
         bus.off("batch", onBatch);
         bus.off("trade", onTrade);
+        bus.off("sale", onSale);
       });
       return;
     }

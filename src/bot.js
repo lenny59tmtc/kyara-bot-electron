@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { PROFILE_DIR, loadConfig, saveConfig, RARITY_ORDER, RECYCLE_MIN } from "./config.js";
 import { appendOpening, appendBatch, buildBatchReport, isAlertRarity } from "./store.js";
 import { TradeWorker } from "./trades.js";
+import { SellerWorker } from "./seller.js";
 import { humanClick } from "./human.js";
 import { bus } from "./bus.js";
 
@@ -22,6 +23,7 @@ export class KyaraBot {
     this.loginPrompted = false;
     this.lastDupCheck = 0;
     this.trades = new TradeWorker(this);
+    this.seller = new SellerWorker(this);
     this.state = {
       running: false,
       startedAt: null,
@@ -61,7 +63,14 @@ export class KyaraBot {
   }
 
   snapshot() {
-    return JSON.parse(JSON.stringify({ ...this.state, config: this.config, trade: this.trades?.snapshot() ?? null }));
+    return JSON.parse(
+      JSON.stringify({
+        ...this.state,
+        config: this.config,
+        trade: this.trades?.snapshot() ?? null,
+        sell: this.seller?.snapshot() ?? null,
+      }),
+    );
   }
 
   async start() {
@@ -77,12 +86,14 @@ export class KyaraBot {
       this.running = false;
     });
     this.trades.start();
+    this.seller.start();
   }
 
   async stop() {
     this.running = false;
     this.state.running = false;
     bus.emit("state", this.snapshot());
+    await this.seller.stop();
     await this.trades.stop();
     try {
       await this.context?.close();
