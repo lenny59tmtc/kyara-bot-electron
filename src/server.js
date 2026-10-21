@@ -13,6 +13,10 @@ const MIME = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".map": "application/json",
 };
 
 export function createServer(bot) {
@@ -77,9 +81,31 @@ export function createServer(bot) {
       try {
         if (url.searchParams.get("refresh") === "1") clearMarketCache();
         await bot.ensureBrowser();
+        if (bot.state.authenticated !== true) {
+          return json(res, {
+            error: "Connexion à Kyara requise : connecte ton compte Discord avant l'analyse de marché.",
+            code: "auth_required",
+            rows: [],
+            summary: { characters: 0, extras: 0, sellable: 0, potential: 0 },
+          });
+        }
         return json(res, await getDuplicates(bot));
       } catch (e) {
-        return json(res, { error: e?.message || String(e), rows: [], summary: { characters: 0, extras: 0, sellable: 0, potential: 0 } });
+        const message = e?.message || String(e);
+        const code = /rate_limited/.test(message)
+          ? "rate_limited"
+          : /auth_required/.test(message)
+            ? "auth_required"
+            : /browser_closed/.test(message)
+              ? "browser_closed"
+              : "market_error";
+        return json(res, {
+          error: message,
+          code,
+          retryAfterMs: bot.isRateLimited?.() ? Math.max(0, bot.rateLimitedUntil - Date.now()) : null,
+          rows: [],
+          summary: { characters: 0, extras: 0, sellable: 0, potential: 0 },
+        });
       }
     }
     if (url.pathname === "/api/config" && req.method === "GET") {
@@ -153,6 +179,14 @@ export function createServer(bot) {
       if (patch.tradesAuto === true) bot.lastDupCheck = 0;
       bus.emit("state", bot.snapshot());
       return json(res, bot.config);
+    }
+    if (url.pathname === "/api/bot/browser/restart" && req.method === "POST") {
+      try {
+        await bot.restartBrowser();
+        return json(res, { ok: true, state: bot.snapshot() });
+      } catch (e) {
+        return json(res, { ok: false, error: e?.message || String(e) });
+      }
     }
     if (url.pathname === "/api/bot/start" && req.method === "POST") {
       await bot.start();

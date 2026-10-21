@@ -24,6 +24,9 @@ export async function loadCatalog(bot) {
   } catch {}
 
   const list = await bot.api("/characters");
+  if (list?.error) {
+    throw new Error(/rate_limited/.test(list.error) ? "rate_limited" : `catalogue indisponible: ${list.error}`);
+  }
   if (!Array.isArray(list) || !list.length) throw new Error("catalogue indisponible");
   const map = {};
   for (const c of list) map[c.id] = c;
@@ -36,54 +39,89 @@ export async function loadCatalog(bot) {
 }
 
 async function marketSnapshot(bot, ids) {
+  if (!bot.page || bot.page.isClosed()) throw new Error("browser_closed");
+  if (!bot.page.url().startsWith("https://kyara.games")) throw new Error("auth_required");
+  // Le cache expire réellement (auparavant MARKET_TTL n'était pas utilisé).
+  if (Date.now() - marketCache.at > MARKET_TTL) {
+    marketCache = { at: 0, map: {} };
+  }
   const missing = ids.filter((id) => !(id in marketCache.map));
-  if (missing.length) {
-    const fresh = await bot.page.evaluate(async (ids) => {
-      const token = localStorage.getItem("kyara_token");
-      const headers = {
-        authorization: `Bearer ${token}`,
-        "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
-      };
-      const out = {};
-      let cursor = 0;
-      const worker = async () => {
-        while (cursor < ids.length) {
-          const id = ids[cursor++];
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              const r = await fetch(`/api/market/listings?characterId=${id}&pageSize=5&sort=price_asc`, { headers });
-              if (r.status === 429) {
-                await new Promise((s) => setTimeout(s, 1500 * (attempt + 1)));
+  if (!missing.length) return marketCache.map;
+
+  const fresh = await bot.page.evaluate(async (ids) => {
+    const token = localStorage.getItem("kyara_token");
+    const headers = {
+      authorization: `Bearer ${token}`,
+      "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
+    };
+    const out = {};
+    let cursor = 0;
+    let limited = false;
+    let retryAfterMs = 90000;
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const worker = async () => {
+      while (!limited && cursor < ids.length) {
+        const id = ids[cursor++];
+        let ok = false;
+        for (let attempt = 0; attempt < 2 && !limited; attempt++) {
+          try {
+            const r = await fetch(`/api/market/listings?characterId=${id}&pageSize=5&sort=price_asc`, { headers });
+            if (r.status === 429) {
+              const retry = Number(r.headers.get("retry-after")) || 0;
+              if (attempt === 0) {
+                await sleep(2200 + Math.random() * 1000);
                 continue;
               }
-              const j = await r.json();
-              const items = (j.items || []).filter((x) => x.status === "active");
-              const prices = items
-                .map((x) => x.buyoutPrice ?? x.price ?? x.currentBid)
-                .filter((x) => typeof x === "number" && x > 0);
-              out[id] = { lowest: prices.length ? Math.min(...prices) : null, count: items.length };
-              break;
-            } catch {
-              out[id] = { lowest: null, count: 0, error: true };
+              limited = true;
+              retryAfterMs = Math.max(60000, retry * 1000);
               break;
             }
-            await new Promise((s) => setTimeout(s, 400));
+            if (!r.ok) {
+              await sleep(350);
+              continue;
+            }
+            const j = await r.json();
+            const items = (j.items || []).filter((x) => x.status === "active");
+            const prices = items
+              .map((x) => x.buyoutPrice ?? x.price ?? x.currentBid)
+              .filter((x) => typeof x === "number" && x > 0);
+            out[id] = { lowest: prices.length ? Math.min(...prices) : null, count: items.length };
+            ok = true;
+          } catch {
+            await sleep(350);
           }
-          if (!(id in out)) out[id] = { lowest: null, count: 0, error: true };
-          await new Promise((s) => setTimeout(s, 100));
         }
-      };
-      await Promise.all([worker(), worker(), worker()]);
-      return out;
-    }, missing);
-    Object.assign(marketCache.map, fresh);
-    marketCache.at = Date.now();
+        if (!ok && !limited) out[id] = { lowest: null, count: 0, error: true };
+        // Étalement des requêtes pour éviter de déclencher le rate limit.
+        await sleep(220 + Math.random() * 180);
+      }
+    };
+
+    // Deux workers maximum : plus doux pour l'API que l'ancienne version (3).
+    await Promise.all([worker(), worker()]);
+    if (limited) return { __rateLimited: true, retryAfterMs };
+    return out;
+  }, missing);
+
+  if (fresh?.__rateLimited) {
+    bot.noteRateLimit?.(fresh.retryAfterMs || 90000);
+    throw new Error("rate_limited");
   }
+  delete fresh?.__rateLimited;
+  Object.assign(marketCache.map, fresh);
+  marketCache.at = Date.now();
   return marketCache.map;
 }
 
 export async function getDuplicates(bot) {
+  if (bot.state?.authenticated === false) throw new Error("auth_required");
+  if (typeof bot.ensureOnSite === "function") await bot.ensureOnSite();
   const collection = await bot.api("/me/collection");
+  if (collection?.error) {
+    if (/rate_limited/.test(collection.error)) throw new Error("rate_limited");
+    throw new Error(`collection indisponible: ${collection.error}`);
+  }
   if (!Array.isArray(collection)) throw new Error("collection indisponible (connecte le bot)");
   const dupes = collection.filter((i) => i.qty > 1);
   const catalog = await loadCatalog(bot);

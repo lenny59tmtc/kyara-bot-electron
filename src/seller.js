@@ -95,6 +95,13 @@ export class SellerWorker {
       this.state.strategy = cfg.sellPricing || "normal";
       this.state.maxRarity = cfg.sellMaxRarity || "R";
 
+      if (this.bot.isRateLimited?.()) {
+        this.state.phase = "rate_limited";
+        this.state.nextAt = null;
+        await this.idle(12000);
+        continue;
+      }
+
       if (!this.state.enabled) {
         this.state.phase = "disabled";
         this.state.candidates = 0;
@@ -215,6 +222,7 @@ export class SellerWorker {
   }
 
   async collectCandidates(cfg) {
+    if (typeof this.bot.ensureOnSite === "function") await this.bot.ensureOnSite();
     const data = await getDuplicates(this.bot);
     const rows = data?.rows || [];
     const maxRank = RARITY_ORDER.indexOf(cfg.sellMaxRarity || "R");
@@ -255,6 +263,8 @@ export class SellerWorker {
   }
 
   async checkSoldListings() {
+    if (!this.bot.page || this.bot.page.isClosed()) return;
+    if (!this.bot.page.url().startsWith("https://kyara.games")) return;
     const mine = await this.bot.api("/me/market");
     const listings = Array.isArray(mine?.listings) ? mine.listings : [];
     this.lastSoldCheck = Date.now();

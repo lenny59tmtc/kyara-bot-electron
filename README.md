@@ -7,6 +7,18 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.5.0
+
+- **Analyse de marché fiabilisée** : la page est vérifiée/ramenée sur `kyara.games` avant l'analyse, les erreurs
+  `rate_limited` sont gérées avec un backoff global, le cache marché expire réellement (3 min) et l'analyse
+  est moins agressive (2 requêtes parallèles, étalement des appels).
+- **Chromium ne se ferme plus sur une erreur transitoire** : le bot conserve le navigateur en cas de limitation
+  API, détecte sa fermeture/crash et le relance automatiquement ; nouvel endpoint et bouton **« Relancer Chromium »**.
+- **Ergonomie du tableau de bord** : messages d'erreur contextuels (connexion requise, limite API, Chromium fermé),
+  progression de l'analyse en secondes, compte à rebours avant nouvelle analyse, bannière système, indicateur
+  « API limitée », onglet actif mémorisé dans l'URL et indicateur de configuration non enregistrée.
+- **Aucune fermeture de page** sur erreur API : les pages/contextes ne sont recréés qu'en cas de fermeture réelle.
+
 ## Nouveautés de la version 1.4.1
 
 - **Correction du démarrage** : la boucle de veille de la vente automatique pouvait s'exécuter sans pause lorsque
@@ -305,9 +317,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.4.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.4.1.exe` — exécutable portable
-- `Kyara-Bot-1.4.1-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.5.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.5.0.exe` — exécutable portable
+- `Kyara-Bot-1.5.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -331,8 +343,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 ---
@@ -356,6 +368,8 @@ git push origin v1.4.1
 | Le bot reste « non connecté » | Connecte-toi dans la fenêtre Chromium ouverte sur kyara.games (le bot reprend ensuite tout seul) |
 | SmartScreen bloque l'installateur | Le binaire est signé mais le certificat est auto-signé : installe `build/kyara-bot-codesign.cer` (voir [Signature Windows et Defender](#signature-windows-et-defender)) ou « Informations complémentaires » → « Exécuter quand même » |
 | Defender bloque l'application | Propriétés du fichier → **Débloquer** ; ajoute une exclusion pour le dossier d'installation ou signale le faux positif à Microsoft |
+| « API limitée » / analyse de marché bloquée | Attends la fin du compte à rebours : le bot applique un backoff global et conserve Chromium. Relance l'analyse ensuite. |
+| Chromium est fermé / ne répond plus | Le bot le détecte et le relance automatiquement ; bouton **Relancer Chromium** dans l'onglet **Doublons à vendre**. |
 | Linux : l'app ne se lance pas | Installe les dépendances Chromium : `sudo apt install libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2` |
 | Filtres d'échanges instables | Le moteur réessaie automatiquement ; les temporisations sont dans `src/trades.js` |
 

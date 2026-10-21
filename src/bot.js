@@ -13,6 +13,31 @@ const BASE = "https://kyara.games";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PROFILE_LOCK_FILES = ["SingletonLock", "SingletonCookie", "SingletonSocket", "DevToolsActivePort", "lockfile"];
 
+function withTimeout(promise, ms, label = "timeout") {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(label));
+    }, ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export class KyaraBot {
   constructor() {
     this.config = loadConfig();
@@ -25,6 +50,8 @@ export class KyaraBot {
     this.opening = 0;
     this.loginPrompted = false;
     this.lastDupCheck = 0;
+    this.rateLimitedUntil = 0;
+    this.lastRateLimitLog = 0;
     this.trades = new TradeWorker(this);
     this.seller = new SellerWorker(this);
     this.state = {
@@ -52,6 +79,9 @@ export class KyaraBot {
       discordUsername: null,
       autoOpenPaused: false,
       tradesAutoOffReason: null,
+      browserOpen: false,
+      browserClosed: false,
+      rateLimitedUntil: null,
       log: [],
     };
   }
@@ -76,6 +106,27 @@ export class KyaraBot {
     );
   }
 
+  isRateLimited() {
+    return Date.now() < this.rateLimitedUntil;
+  }
+
+  noteRateLimit(retryAfterMs = 60000) {
+    const wait = Math.max(15000, Math.min(Number(retryAfterMs) || 60000, 15 * 60 * 1000));
+    this.rateLimitedUntil = Math.max(this.rateLimitedUntil, Date.now() + wait);
+    this.state.rateLimitedUntil = new Date(this.rateLimitedUntil).toISOString();
+    if (Date.now() - this.lastRateLimitLog > 30000) {
+      this.lastRateLimitLog = Date.now();
+      this.log("warn", `API limitée par le serveur — pause de ${Math.ceil(wait / 1000)} s`);
+    }
+  }
+
+  clearRateLimitIfExpired() {
+    if (this.rateLimitedUntil && Date.now() >= this.rateLimitedUntil) {
+      this.rateLimitedUntil = 0;
+      this.state.rateLimitedUntil = null;
+    }
+  }
+
   async start() {
     if (this.running) return;
     this.config = loadConfig();
@@ -95,6 +146,8 @@ export class KyaraBot {
   async stop() {
     this.running = false;
     this.state.running = false;
+    this.state.browserOpen = false;
+    this.state.browserClosed = false;
     bus.emit("state", this.snapshot());
     await this.seller.stop();
     await this.trades.stop();
@@ -240,7 +293,14 @@ export class KyaraBot {
   }
 
   async doEnsureBrowser() {
+    if (this.context?.isClosed()) {
+      this.context = null;
+      this.page = null;
+      this.state.browserOpen = false;
+    }
     if (this.context && !this.context.isClosed()) {
+      this.state.browserOpen = true;
+      this.state.browserClosed = false;
       if (!this.page || this.page.isClosed()) {
         this.page =
           this.context.pages().find((p) => !p.isClosed() && p !== this.trades?.page) ?? (await this.context.newPage());
@@ -269,6 +329,17 @@ export class KyaraBot {
     }
     if (!ctx) throw launchError;
     this.context = ctx;
+    this.state.browserOpen = true;
+    this.state.browserClosed = false;
+    ctx.on("close", () => {
+      if (this.context !== ctx) return;
+      this.context = null;
+      this.page = null;
+      this.state.browserOpen = false;
+      this.state.browserClosed = true;
+      if (this.running) this.log("warn", "Chromium a été fermé — relance automatique programmée");
+      bus.emit("state", this.snapshot());
+    });
     await this.context.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => undefined });
       const wa = navigator.webdriver;
@@ -303,46 +374,97 @@ export class KyaraBot {
   attach(page) {
     page.on("response", (res) => this.onResponse(res));
     page.on("close", () => {
-      if (this.page === page) this.page = null;
+      if (this.page === page) {
+        this.page = null;
+        this.state.browserOpen = Boolean(this.context && !this.context.isClosed());
+        bus.emit("state", this.snapshot());
+      }
+    });
+    page.on("crash", () => {
+      if (this.page === page) {
+        this.page = null;
+        this.state.browserOpen = Boolean(this.context && !this.context.isClosed());
+        this.log("warn", "Page Chromium plantée — elle sera recréée automatiquement");
+      }
     });
   }
 
   async api(path) {
-    return this.page.evaluate(async (p) => {
-      const token = localStorage.getItem("kyara_token");
-      if (!token) return { error: "no_token" };
-      const r = await fetch("/api" + p, {
-        headers: {
-          authorization: `Bearer ${token}`,
-          "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
-        },
-      });
-      return await r.json().catch(() => ({ error: "bad_json", status: r.status }));
-    }, path);
+    if (this.isRateLimited()) {
+      return { error: "rate_limited_local", retryAfterMs: Math.max(0, this.rateLimitedUntil - Date.now()) };
+    }
+    if (!this.page || this.page.isClosed()) return { error: "browser_closed" };
+    let result;
+    try {
+      result = await withTimeout(
+        this.page.evaluate(async (p) => {
+          const token = localStorage.getItem("kyara_token");
+          if (!token) return { error: "no_token" };
+          const r = await fetch("/api" + p, {
+            headers: {
+              authorization: `Bearer ${token}`,
+              "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
+            },
+          });
+          if (r.status === 429) {
+            const retry = Number(r.headers.get("retry-after")) || 0;
+            return { error: "rate_limited", status: 429, retryAfterMs: retry * 1000 };
+          }
+          return await r.json().catch(() => ({ error: "bad_json", status: r.status }));
+        }, path),
+        30000,
+        "api_timeout",
+      );
+    } catch (error) {
+      return { error: error?.message || String(error) };
+    }
+    if (result?.error === "rate_limited") this.noteRateLimit(Number(result.retryAfterMs) || 90000);
+    return result;
   }
 
   async apiPost(path, body) {
-    return this.page.evaluate(
-      async ({ p, b }) => {
-        const token = localStorage.getItem("kyara_token");
-        if (!token) return { error: "no_token" };
-        const headers = {
-          authorization: `Bearer ${token}`,
-          "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
-          "content-type": "application/json",
-        };
-        let pass = null;
-        try {
-          const raw = JSON.parse(localStorage.getItem("kyara_pass") || "null");
-          if (raw && raw.expiresAt > Date.now()) pass = raw.pass;
-        } catch {}
-        if (pass) headers["x-pass"] = pass;
-        const r = await fetch("/api" + p, { method: "POST", headers, body: JSON.stringify(b) });
-        const j = await r.json().catch(() => ({ error: "bad_json", status: r.status }));
-        return { status: r.status, body: j };
-      },
-      { p: path, b: body },
-    );
+    if (this.isRateLimited()) {
+      return { error: "rate_limited_local", retryAfterMs: Math.max(0, this.rateLimitedUntil - Date.now()) };
+    }
+    if (!this.page || this.page.isClosed()) return { error: "browser_closed" };
+    let result;
+    try {
+      result = await withTimeout(
+        this.page.evaluate(
+          async ({ p, b }) => {
+            const token = localStorage.getItem("kyara_token");
+            if (!token) return { error: "no_token" };
+            const headers = {
+              authorization: `Bearer ${token}`,
+              "x-device-id": localStorage.getItem("kyara_device") || "no-storage",
+              "content-type": "application/json",
+            };
+            let pass = null;
+            try {
+              const raw = JSON.parse(localStorage.getItem("kyara_pass") || "null");
+              if (raw && raw.expiresAt > Date.now()) pass = raw.pass;
+            } catch {}
+            if (pass) headers["x-pass"] = pass;
+            const r = await fetch("/api" + p, { method: "POST", headers, body: JSON.stringify(b) });
+            if (r.status === 429) {
+              const retry = Number(r.headers.get("retry-after")) || 0;
+              return { error: "rate_limited", status: 429, retryAfterMs: retry * 1000 };
+            }
+            const j = await r.json().catch(() => ({ error: "bad_json", status: r.status }));
+            return { status: r.status, body: j };
+          },
+          { p: path, b: body },
+        ),
+        30000,
+        "api_timeout",
+      );
+    } catch (error) {
+      return { error: error?.message || String(error) };
+    }
+    if (result?.error === "rate_limited" || result?.body?.error === "rate_limited") {
+      this.noteRateLimit(Number(result.retryAfterMs) || 90000);
+    }
+    return result;
   }
 
   async ensurePass() {
@@ -478,12 +600,29 @@ export class KyaraBot {
   async loop() {
     while (this.running) {
       let waitMs = this.config.pollSeconds * 1000;
+      this.clearRateLimitIfExpired();
+      if (this.isRateLimited()) {
+        // Pause globale : on garde Chromium ouvert et on ne martèle pas l'API.
+        this.state.rateLimitedUntil = new Date(this.rateLimitedUntil).toISOString();
+        bus.emit("state", this.snapshot());
+        await sleep(Math.min(Math.max(1000, this.rateLimitedUntil - Date.now()), 5000));
+        continue;
+      }
+      this.state.rateLimitedUntil = null;
       try {
         await this.ensureBrowser();
 
         // Pendant le login Discord, la fenêtre n'est plus sur kyara.games :
         // on attend le retour sur le site sans la fermer.
-        const page = this.page;
+        let page = this.page;
+        if (page && !page.isClosed() && !page.url().startsWith(BASE) && this.state.authenticated) {
+          // Session connectée mais page redirigée (ex. retour OAuth) : on revient sur le site.
+          try {
+            await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
+            await page.waitForTimeout(1000);
+          } catch {}
+        }
+        page = this.page;
         if (page && !page.isClosed() && !page.url().startsWith(BASE)) {
           this.state.needsLogin = true;
           this.state.authenticated = false;
@@ -493,6 +632,7 @@ export class KyaraBot {
           if (me?.error) throw new Error(`API /me: ${me.error}`);
           this.applyMe(me);
           this.state.authWarned = false;
+          this.state.lastError = null;
 
           if (!this.state.authenticated) {
             // Compte invité créé automatiquement par le site : jamais d'automatisation dessus.
@@ -532,7 +672,11 @@ export class KyaraBot {
           this.log("error", msg);
         }
         const onOauthPage = this.page && !this.page.isClosed() && !this.page.url().startsWith(BASE);
-        if (msg === "API /me: no_token" || onOauthPage) {
+        if (/rate_limited/i.test(msg)) {
+          // Ne jamais fermer Chromium pour un simple throttling : on attend.
+          this.noteRateLimit(Number(e?.retryAfterMs) || 90000);
+          waitMs = 5000;
+        } else if (msg === "API /me: no_token" || onOauthPage) {
           // Pas connecté / OAuth en cours : on garde la fenêtre ouverte.
           this.state.needsLogin = true;
           this.state.authenticated = false;
@@ -543,17 +687,44 @@ export class KyaraBot {
           }
           waitMs = 3000;
         } else {
-          try {
-            await this.page?.close();
-          } catch {}
-          this.page = null;
-          waitMs = 20000;
+          // Erreur transitoire (page fermée, timeout réseau…) : on garde le
+          // contexte Chromium ; la boucle recréera la page/le navigateur au besoin.
+          if (!this.page || this.page.isClosed()) this.page = null;
+          waitMs = 15000;
         }
       }
       bus.emit("state", this.snapshot());
       if (!this.running) break;
       await sleep(waitMs * (0.8 + Math.random() * 0.4));
     }
+  }
+
+  async ensureOnSite() {
+    await this.ensureBrowser();
+    const page = this.page;
+    if (!page || page.isClosed()) throw new Error("browser_closed");
+    if (!page.url().startsWith(BASE)) {
+      if (!this.state.authenticated) throw new Error("auth_required");
+      await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.waitForTimeout(1000);
+    }
+    return page;
+  }
+
+  async restartBrowser() {
+    this.log("info", "Redémarrage du navigateur demandé…");
+    try {
+      await this.context?.close();
+    } catch {}
+    this.context = null;
+    this.page = null;
+    this.state.browserOpen = false;
+    this.state.browserClosed = false;
+    this.rateLimitedUntil = 0;
+    this.state.rateLimitedUntil = null;
+    await this.ensureBrowser();
+    bus.emit("state", this.snapshot());
+    return true;
   }
 
   async openLogin() {

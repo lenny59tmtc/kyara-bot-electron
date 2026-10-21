@@ -102,6 +102,12 @@ export class TradeWorker {
     while (this.running) {
       let wait = jit(5000, 8000);
       try {
+        if (this.bot.isRateLimited?.()) {
+          this.state.filters = { missing: false, dupes: false };
+          this.state.candidates = 0;
+          if (!(await this.idle(12000))) break;
+          continue;
+        }
         if (this.bot.config?.tradesAuto === false) {
           this.state.filters = { missing: false, dupes: false };
           this.state.candidates = 0;

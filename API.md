@@ -176,14 +176,16 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | Méthode | Route | Description |
 |---|---|---|
 | GET | `/` | Tableau de bord (historique, stats, config, journal) |
-| GET | `/api/state` | État du bot : `running`, `pseudo`, `freePacks`, `nextFreeAt`, `batch`, `lastError`, `log`, `sell` |
+| GET | `/api/state` | État du bot : `running`, `pseudo`, `freePacks`, `nextFreeAt`, `batch`, `lastError`, `log`, `sell`, `browserOpen`, `browserClosed`, `rateLimitedUntil` |
 | GET | `/api/history?limit=100` | Ouvertures (du plus récent au plus ancien) + stats |
 | GET | `/api/batches?limit=30` | Comptes rendus des multi-ouvertures |
 | GET | `/api/trades?limit=200` | Échanges : `{trades, buckets, stats, auto, state}` (`buckets` = tranches de 10 min) |
 | GET | `/api/sales` | Ventes : `{stats, history, seller, auto}` — stats chakra/gagné (24 h, 60 min, moyenne/h, tranches horaires) |
+| GET | `/api/duplicates` | Analyse du marché : `{rows, summary}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
 | GET | `/api/config` | Configuration actuelle |
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
+| POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
 | POST | `/api/bot/start` | Démarre le bot |
 | POST | `/api/bot/stop` | Arrête le bot |
 | GET | `/events` | SSE : `state`, `log`, `opening`, `batch`, `trade`, `sale` |
@@ -215,3 +217,15 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   trace les mises en vente. Un premier scan mémorise les ventes déjà soldées sans les compter (bilan démarré
   à l'activation).
 - Les ventes manuelles (`POST /api/sell`) alimentent aussi le bilan.
+
+### Robustesse navigateur, marché et limites API
+
+- Le serveur HTTP répond avant le démarrage du bot ; Chromium est lancé ensuite (démarrage Electron fiable).
+- Verrous/profils Chromium résiduels nettoyés au démarrage ; si Chromium se ferme ou plante, le bot le relance
+  automatiquement (sauf arrêt explicite) et expose `browserOpen` / `browserClosed` dans `/api/state`.
+- Une erreur `rate_limited` est détectée dans `bot.api`/`apiPost` : backoff global (`rateLimitedUntil`), pause du bot,
+  des échanges et de la vente automatique, sans fermer Chromium. Le tableau de bord affiche un compte à rebours.
+- L'analyse de marché vérifie que la page est sur `kyara.games` (retour automatique si session connectée), limite
+  sa concurrence à 2 requêtes, étale les appels, lit `Retry-After`, et jette `rate_limited` en cas de 429 persistant.
+  Le cache marché expire après 3 minutes.
+- `POST /api/bot/browser/restart` ferme puis relance Chromium (bouton « Relancer Chromium » de l'interface).

@@ -236,6 +236,17 @@
   .sell-item .si-sub { color: var(--dim); font-size: 11px; }
   .sell-item .si-price { font-weight: 800; color: var(--gold); white-space: nowrap; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .market-msg {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 0 0 12px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel2);
+    color: var(--dim); font-size: 13px;
+  }
+  .market-msg[hidden] { display: none; }
+  .market-msg.error { border-color: rgba(244, 90, 159, .5); background: rgba(244, 90, 159, .08); color: var(--txt); }
+  .market-msg.ok { border-color: rgba(62, 207, 142, .35); color: var(--txt); }
+  .market-msg button { padding: 5px 10px; font-size: 12px; }
+  #dupRefresh:disabled, #browserRestart:disabled { opacity: .55; cursor: wait; }
   #dupTable { overflow-x: auto; }
   #dupTable table { min-width: 1120px; }
   main { max-width: 1700px; margin: 0 auto; width: 100%; }
@@ -290,6 +301,7 @@
     <div class="pill">Boosters gratuits: <b id="free">—</b></div>
     <div class="pill">Échanges: <b id="tradeCount">—</b></div>
     <div class="pill">Chakra/h: <b id="chakraHour">—</b></div>
+    <div class="pill" id="netPill" style="display:none"><span class="dot warn"></span><span id="netText">—</span></div>
     <div class="pill" id="batchPill" style="display:none">Multi: <b id="batchProg">—</b></div>
     <div class="pill">Prochain: <b id="next">—</b></div>
   </div>
@@ -310,6 +322,15 @@
     <div class="lb-sub" id="loginHint">Compte invité détecté. Connecte-toi avec Discord dans la fenêtre Chromium pour activer les automatismes.</div>
   </div>
   <button id="loginBtn">Se connecter</button>
+</div>
+
+<div class="login-banner" id="systemBanner" hidden>
+  <img src="/icon.png" alt="" />
+  <div class="lb-txt">
+    <div class="lb-title" id="systemTitle">Chromium indisponible</div>
+    <div class="lb-sub" id="systemText">Le navigateur a été fermé ou ne répond plus.</div>
+  </div>
+  <button id="systemAction">Relancer Chromium</button>
 </div>
 
 <main id="viewOpen">
@@ -432,8 +453,10 @@
         <h2 style="margin:0">Mes doublons & prix de vente conseillé</h2>
         <div class="spacer"></div>
         <span class="sub2" id="dupAt"></span>
+        <button class="ghost" id="browserRestart" title="Relance Chromium sans redémarrer le bot">Relancer Chromium</button>
         <button class="ghost" id="dupRefresh">Rafraîchir le marché</button>
       </div>
+      <div class="market-msg" id="dupMsg" hidden></div>
       <div class="stats" id="dupStats"></div>
       <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
         <input type="search" id="dupQ" placeholder="Rechercher un perso, une série…" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;min-width:220px" />
@@ -714,9 +737,22 @@ $("loginBtn").addEventListener("click", requestLogin);
 function renderState() {
   if (!state) return;
   const needsLogin = state.needsLogin === true;
+  const rateUntil = state.rateLimitedUntil ? new Date(state.rateLimitedUntil).getTime() : 0;
+  const rateLimited = state.running === true && rateUntil > Date.now();
+  const browserClosed = state.running === true && state.browserClosed === true;
+  const warn = needsLogin || rateLimited || browserClosed;
   const dot = $("dot");
-  dot.className = "dot" + (needsLogin ? " warn" : state.running ? " on" : state.lastError ? " err" : "");
-  $("status").textContent = needsLogin ? "connexion requise" : state.running ? "en marche" : "arrêté";
+  dot.className = "dot" + (warn ? " warn" : state.running ? " on" : state.lastError ? " err" : "");
+  $("status").textContent = needsLogin
+    ? "connexion requise"
+    : rateLimited
+      ? "API limitée"
+      : browserClosed
+        ? "Chromium fermé"
+        : state.running
+          ? "en marche"
+          : "arrêté";
+  $("status").title = state.lastError || "";
   if (needsLogin) {
     $("user").innerHTML = "<b>Compte invité</b> · connexion Discord requise";
   } else {
@@ -748,6 +784,7 @@ function renderState() {
   renderTradeLog(state.log || []);
   renderSellStatus();
   renderSellLog();
+  renderSystemState();
 }
 
 function renderTradeStatus(t) {
@@ -1015,6 +1052,7 @@ function renderSellStatus() {
     scan: "analyse des doublons…",
     selling: "mise en vente en cours",
     idle: "en veille — aucun doublon éligible",
+    rate_limited: "en pause (limite API)",
     error: `erreur : ${seller?.lastError || "inconnue"}`,
   };
   if ($("sellState")) {
@@ -1104,6 +1142,8 @@ function applyConfig(c) {
   $("sellPricing").value = c.sellPricing || "normal";
   $("sellDelayMin").value = c.sellDelayMin ?? 30;
   $("sellDelayMax").value = c.sellDelayMax ?? 90;
+  const save = $("save");
+  if (save) save.textContent = "Enregistrer";
 }
 
 $("toggle").addEventListener("click", async () => {
@@ -1117,31 +1157,46 @@ $("toggle").addEventListener("click", async () => {
 });
 
 $("save").addEventListener("click", async () => {
-  const r = await fetch("/api/config", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      pack: $("pack").value,
-      pollSeconds: Number($("poll").value) || 45,
-      openDaily: $("daily").checked,
-      autoOpen: $("autoOpen").checked,
-      soundOnRare: $("sound").checked,
-      batchMin: Number($("batchMin").value) || 6,
-      batchMax: Number($("batchMax").value) || 8,
-      saleType: $("saleType").value,
-      saleDurationHours: Number($("saleDuration").value) || 12,
-      autoSell: $("autoSell").checked,
-      sellMaxRarity: $("sellMaxRarity").value,
-      sellPricing: $("sellPricing").value,
-      sellDelayMin: Number($("sellDelayMin").value) || 30,
-      sellDelayMax: Number($("sellDelayMax").value) || 90,
-    }),
-  });
-  applyConfig(await r.json());
-  refreshSales();
-  renderSellStatus();
-  toast("Configuration enregistrée");
+  const saveBtn = $("save");
+  saveBtn.disabled = true;
+  try {
+    const r = await fetch("/api/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pack: $("pack").value,
+        pollSeconds: Number($("poll").value) || 45,
+        openDaily: $("daily").checked,
+        autoOpen: $("autoOpen").checked,
+        soundOnRare: $("sound").checked,
+        batchMin: Number($("batchMin").value) || 6,
+        batchMax: Number($("batchMax").value) || 8,
+        saleType: $("saleType").value,
+        saleDurationHours: Number($("saleDuration").value) || 12,
+        autoSell: $("autoSell").checked,
+        sellMaxRarity: $("sellMaxRarity").value,
+        sellPricing: $("sellPricing").value,
+        sellDelayMin: Number($("sellDelayMin").value) || 30,
+        sellDelayMax: Number($("sellDelayMax").value) || 90,
+      }),
+    });
+    applyConfig(await r.json());
+    refreshSales();
+    renderSellStatus();
+    toast("Configuration enregistrée");
+  } catch {
+    toast("Impossible d'enregistrer la configuration");
+  } finally {
+    saveBtn.disabled = false;
+  }
 });
+
+function markConfigDirty() {
+  const save = $("save");
+  if (save && !save.textContent.includes("*")) save.textContent = "Enregistrer *";
+}
+$("configPanel").addEventListener("input", markConfigDirty);
+$("configPanel").addEventListener("change", markConfigDirty);
 
 $("testSound").addEventListener("click", playAlert);
 
@@ -1163,7 +1218,11 @@ es.onmessage = (ev) => {
   if (msg.type === "state") {
     state = msg.state;
     renderState();
-    if (state.config && (!config || state.config.pack !== config.pack)) applyConfig(state.config);
+    if (state.config) {
+      const panel = $("configPanel");
+      const editing = panel && panel.contains(document.activeElement);
+      if (!editing && JSON.stringify(state.config) !== JSON.stringify(config)) applyConfig(state.config);
+    }
   }
   if (msg.type === "log") {
     state = state || {};
@@ -1202,7 +1261,87 @@ es.onmessage = (ev) => {
   }
 };
 
+function renderSystemState() {
+  if (!state) return;
+  const netPill = $("netPill");
+  const rateUntil = state.rateLimitedUntil ? new Date(state.rateLimitedUntil).getTime() : 0;
+  const rateLimited = state.running === true && rateUntil > Date.now();
+  if (netPill) {
+    netPill.style.display = rateLimited ? "" : "none";
+    if (rateLimited) {
+      const secs = Math.max(1, Math.ceil((rateUntil - Date.now()) / 1000));
+      $("netText").textContent = `API limitée · ${secs} s`;
+    }
+  }
+  const refresh = $("dupRefresh");
+  if (refresh && !dupLoading) {
+    const remain = dupCooldownUntil - Date.now();
+    if (remain > 0) {
+      refresh.disabled = true;
+      refresh.textContent = `Patientez ${Math.ceil(remain / 1000)} s`;
+    } else if (refresh.disabled && refresh.textContent.startsWith("Patientez")) {
+      refresh.disabled = false;
+      refresh.textContent = "Rafraîchir le marché";
+    }
+  }
+  if (dupLoading && dupStartedAt) {
+    const span = $("dupMsg")?.querySelector("span");
+    if (span) span.textContent = `Analyse du marché en cours… ${Math.floor((Date.now() - dupStartedAt) / 1000)} s`;
+  }
+  const banner = $("systemBanner");
+  if (!banner) return;
+  const browserUnavailable =
+    state.running === true &&
+    state.browserOpen !== true &&
+    (state.browserClosed === true || (!!state.lastError && state.needsLogin !== true));
+  banner.hidden = !browserUnavailable;
+  if (browserUnavailable) {
+    $("systemTitle").textContent = state.browserClosed === true ? "Chromium est fermé" : "Chromium indisponible";
+    $("systemText").textContent =
+      "La fenêtre du navigateur a été fermée ou n'a pas pu démarrer. Relance-la pour reprendre l'analyse de marché et les automatismes.";
+  }
+}
+
+async function restartBrowser() {
+  const btn = $("browserRestart");
+  if (btn) btn.disabled = true;
+  toast("Relance de Chromium…");
+  try {
+    const response = await fetch("/api/bot/browser/restart", { method: "POST" });
+    const result = await response.json();
+    if (result.ok) {
+      state = result.state || (await (await fetch("/api/state")).json());
+      renderState();
+      toast("Chromium relancé");
+    } else {
+      toast(`Chromium : ${result.error || "échec du redémarrage"}`);
+    }
+  } catch {
+    toast("Impossible de relancer Chromium");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showDupMessage(kind, text, action) {
+  const box = $("dupMsg");
+  if (!box) return;
+  box.hidden = false;
+  box.className = `market-msg ${kind || ""}`.trim();
+  box.innerHTML = `<span>${escapeHtml(text)}</span>`;
+  if (action) {
+    const button = document.createElement("button");
+    button.className = "ghost";
+    button.textContent = action.label;
+    button.addEventListener("click", action.run);
+    box.appendChild(button);
+  }
+}
+
 let dupData = null;
+let dupLoading = false;
+let dupStartedAt = 0;
+let dupCooldownUntil = 0;
 let dupSort = { key: "value", dir: -1 };
 
 function switchTab(name) {
@@ -1217,6 +1356,9 @@ function switchTab(name) {
   $("tabDup").classList.toggle("on", isDup);
   $("tabTrade").classList.toggle("on", isTrade);
   $("tabSell").classList.toggle("on", isSell);
+  try {
+    if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  } catch {}
   if (isDup && !dupData) loadDuplicates();
   if (isTrade) refreshTrades();
   if (isSell) refreshSales();
@@ -1227,6 +1369,8 @@ $("tabDup").addEventListener("click", () => switchTab("dup"));
 $("tabTrade").addEventListener("click", () => switchTab("trade"));
 $("tabSell").addEventListener("click", () => switchTab("sell"));
 $("dupRefresh").addEventListener("click", () => loadDuplicates(true));
+$("browserRestart").addEventListener("click", restartBrowser);
+$("systemAction").addEventListener("click", restartBrowser);
 $("dupQ").addEventListener("input", renderDup);
 $("dupRarity").addEventListener("change", renderDup);
 $("dupSellable").addEventListener("change", renderDup);
@@ -1237,15 +1381,79 @@ $("sellConfigBtn").addEventListener("click", () => {
 });
 
 async function loadDuplicates(refresh = false) {
-  $("dupTable").innerHTML = '<div class="empty">Analyse du marché en cours (peut prendre ~20 s)…</div>';
+  if (dupLoading) return;
+  if (dupCooldownUntil > Date.now()) {
+    showDupMessage("", "Analyse en pause quelques secondes pour éviter la limite API…");
+    return;
+  }
+  dupLoading = true;
+  dupStartedAt = Date.now();
+  const btn = $("dupRefresh");
+  const oldLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Analyse…";
+  if (!dupData) $("dupTable").innerHTML = '<div class="empty">Analyse du marché en cours…</div>';
+  showDupMessage("", "Analyse du marché en cours (cela peut prendre 20 à 60 s)…");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
   try {
-    const r = await fetch(`/api/duplicates${refresh ? "?refresh=1" : ""}`);
-    dupData = await r.json();
-    if (dupData.error) throw new Error(dupData.error);
+    const r = await fetch(`/api/duplicates${refresh ? "?refresh=1" : ""}`, { signal: controller.signal });
+    const data = await r.json();
+    if (data.error) {
+      const error = new Error(data.error);
+      error.code = data.code;
+      error.retryAfterMs = data.retryAfterMs;
+      throw error;
+    }
+    dupData = data;
     $("dupAt").textContent = `marché analysé à ${new Date(dupData.at).toLocaleTimeString("fr-FR")}`;
     renderDup();
+    showDupMessage(
+      "ok",
+      `Analyse terminée : ${dupData.summary?.characters ?? 0} doublon(s), ${dupData.summary?.sellable ?? 0} vendable(s).`,
+    );
+    setTimeout(() => {
+      if ($("dupMsg").classList.contains("ok")) $("dupMsg").hidden = true;
+    }, 6000);
+    dupCooldownUntil = Date.now() + 15000;
   } catch (e) {
-    $("dupTable").innerHTML = `<div class="empty">Impossible d'analyser la collection: ${escapeHtml(e.message)}</div>`;
+    const code =
+      e.code ||
+      (e.name === "AbortError"
+        ? "timeout"
+        : state?.needsLogin
+          ? "auth_required"
+          : "market_error");
+    if (code === "auth_required") {
+      showDupMessage("error", "Connexion à Kyara requise pour analyser le marché.", {
+        label: "Se connecter",
+        run: requestLogin,
+      });
+    } else if (code === "rate_limited") {
+      const seconds = Math.max(1, Math.ceil((Number(e.retryAfterMs) || 60000) / 1000));
+      dupCooldownUntil = Date.now() + Math.min(seconds, 180) * 1000;
+      showDupMessage("error", `API limitée par Kyara — réessaie dans ${seconds} s. Chromium est conservé.`);
+    } else if (code === "browser_closed") {
+      showDupMessage("error", "La fenêtre Chromium est fermée.", { label: "Relancer Chromium", run: restartBrowser });
+    } else if (code === "timeout") {
+      showDupMessage("error", "L'analyse a dépassé 2 minutes.", {
+        label: "Réessayer",
+        run: () => loadDuplicates(true),
+      });
+    } else {
+      showDupMessage("error", `Analyse impossible : ${e.message}`, {
+        label: "Réessayer",
+        run: () => loadDuplicates(true),
+      });
+    }
+    if (!dupData) $("dupTable").innerHTML = '<div class="empty">Analyse impossible pour le moment.</div>';
+  } finally {
+    clearTimeout(timer);
+    dupLoading = false;
+    dupStartedAt = 0;
+    btn.disabled = false;
+    btn.textContent = oldLabel;
   }
 }
 
@@ -1433,8 +1641,11 @@ async function tickNext() {
   setInterval(refreshTrades, 30000);
   setInterval(refreshSales, 15000);
   setInterval(updateSellCountdown, 1000);
+  setInterval(renderSystemState, 1000);
   // Vérification fréquente pour afficher la progression du téléchargement auto.
   setInterval(refreshUpdate, 10000);
+  const initialTab = location.hash.replace("#", "");
+  if (["dup", "trade", "sell"].includes(initialTab)) switchTab(initialTab);
 })();
 </script>
 </body>
