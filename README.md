@@ -7,6 +7,16 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.3.0
+
+- **Mise à jour automatique** : `electron-updater` vérifie les Releases au lancement puis toutes les 4 h,
+  **télécharge la mise à jour en arrière-plan** et l'installe automatiquement à la fermeture de l'application.
+- **Progression dans le tableau de bord** : bouton sticky « Téléchargement… 42 % » puis
+  « Mise à jour prête — Redémarrer », et état repris dans la barre de version en bas de page.
+- **Redémarrage en un clic** : le bouton prévient le processus principal, qui installe la mise à jour et relance l'app.
+- **Menu Aide → Rechercher une mise à jour** pour forcer une vérification.
+- **Manifeste `latest.yml`** publié et recalculé après signature pour que le hash corresponde à l'installateur signé.
+
 ## Nouveautés de la version 1.2.1
 
 - **Guide SmartScreen complet** ([SMARTSCREEN.md](SMARTSCREEN.md)) : pourquoi Windows bloque, contournements
@@ -95,8 +105,8 @@ dans [SMARTSCREEN.md](SMARTSCREEN.md).
 4. Si le site crée automatiquement un **compte invité**, l'application le détecte : les automatismes restent en
    pause et la fenêtre Chromium est amenée sur la **connexion Discord** (bouton « Se connecter » du tableau de bord
    pour la relancer).
-5. Au lancement puis **toutes les 5 minutes**, l'application vérifie la dernière version publiée sur GitHub ;
-   un bouton sticky apparaît en bas à droite du tableau de bord lorsqu'une mise à jour est disponible.
+5. Au lancement puis **toutes les 4 heures**, l'application vérifie les mises à jour et **télécharge automatiquement**
+   la nouvelle version en arrière-plan ; la progression s'affiche en bas à droite du tableau de bord.
 
 ### Se connecter à Kyara
 
@@ -113,12 +123,23 @@ que si la session expire.
 - Le réglage **« Ouverture automatique des boosters »** permet de suspendre/relancer les ouvertures sans arrêter le bot.
 - Les **échanges automatiques sont désactivés par défaut** ; ils se désactivent aussi automatiquement si le compte
   ne contient plus aucun doublon. Active-les depuis l'onglet **Échanges**.
-- Si une nouvelle version est publiée, un **bouton de mise à jour** sticky apparaît en bas à droite (vérification
-  toutes les 5 minutes) et ouvre la page de téléchargement.
+- La **mise à jour est automatique** : téléchargement en arrière-plan puis installation à la fermeture, ou
+  clic sur « Mise à jour prête — Redémarrer » pour l'installer immédiatement.
 - Fermer la fenêtre **ne quitte pas** l'application : elle se réduit dans la zone de notification
   (icône ⚡) et le bot continue de tourner. Clic droit sur l'icône → **Quitter** pour tout arrêter.
 - Les réglages sont enregistrés dans `data/config.json`.
 - La **version courante** est affichée en pied de page, avec l'état de la vérification des mises à jour.
+
+### Mise à jour automatique
+
+- L'application **installée** (Setup NSIS) vérifie les mises à jour au lancement puis **toutes les 4 heures**.
+- La nouvelle version est **téléchargée automatiquement en arrière-plan** ; le bouton sticky et la barre du bas
+  affichent la progression (« Téléchargement… 42 % »).
+- Une fois prête : **« Mise à jour prête — Redémarrer »** installe et relance immédiatement.
+- Sans clic, `autoInstallOnAppQuit` installe la mise à jour **à la fermeture** ; elle sera active au prochain démarrage.
+- Les versions **portable** et **ZIP** ne peuvent pas s'auto-remplacer : le bouton ouvre alors la page de téléchargement
+  (mise à jour manuelle).
+- Journaux : `logs/updater.log`. Chaque Release publie `latest.yml` (manifeste de mise à jour).
 
 ---
 
@@ -184,7 +205,7 @@ En mode développement (`npm start` / `npm run bot`), c'est le dossier du projet
 - **Fichier** : ouvrir le tableau de bord dans le navigateur, dossier de données, journal, quitter.
 - **Bot** : redémarrer le serveur + le bot, réinstaller le navigateur Chromium (utile en cas de corruption).
 - **Affichage** : recharger, outils de développement, zoom, plein écran.
-- **Aide** : dépôt GitHub, à propos (versions Electron/Node/Chromium).
+- **Aide** : dépôt GitHub, **Rechercher une mise à jour**, page des Releases, à propos (versions Electron/Node/Chromium).
 
 ---
 
@@ -225,6 +246,7 @@ Autres commandes utiles :
 | `npm run icons:ico` | Régénère `build/icon.ico` (Pillow requis) |
 | `npm run icons:nsis` | Régénère les visuels du programme d'installation (sidebar/en-tête, Pillow requis) |
 | `npm run smartscreen` | Débloque un fichier/dossier et aide à contourner SmartScreen (voir [SMARTSCREEN.md](SMARTSCREEN.md)) |
+| `npm run fix:latest` | Recalcule `dist/latest.yml` après signature de l'installateur (hash/taille) |
 
 ---
 
@@ -236,9 +258,13 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.2.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.2.1.exe` — exécutable portable
-- `Kyara-Bot-1.2.1-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.3.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.3.0.exe` — exécutable portable
+- `Kyara-Bot-1.3.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `latest.yml` — manifeste utilisé par la mise à jour automatique
+
+Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
+`latest.yml` sont recalculés pour correspondre au Setup signé (sinon `electron-updater` refuse la mise à jour).
 
 L'icône de l'application est générée depuis `build/KYARA BOT.svg` : `npm run icons` rend le PNG
 (`build/icon.png`, 1024×1024 via Playwright/Chromium) puis `python build/make-ico.py` produit l'ICO
@@ -258,8 +284,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.2.1
-git push origin v1.2.1
+git tag v1.3.0
+git push origin v1.3.0
 ```
 
 ---
@@ -302,16 +328,17 @@ git push origin v1.2.1
 │  ├─ trades.js         # moteur d'échanges sur /marche?onglet=offres
 │  ├─ human.js          # clics « humanisés » (trajets souris, temporisations)
 │  ├─ market.js         # estimation des prix / doublons
-│  ├─ update.js         # vérification des Releases GitHub (lancement + toutes les 5 min)
+│  ├─ update.js         # vérification GitHub + état de la mise à jour automatique (electron-updater)
 │  ├─ store.js          # historiques JSONL
 │  └─ config.js         # configuration + chemins de données (KYARA_HOME)
-├─ public/index.html    # interface du tableau de bord
+├─ public/index.html    # interface du tableau de bord (progression et redémarrage des mises à jour)
 ├─ scripts/
 │  ├─ install-code-signing-cert.ps1  # installe les certificats publics de signature
 │  ├─ sign-windows.ps1               # signe les builds locaux
 │  ├─ fix-smartscreen.ps1            # déblocage / aide SmartScreen
+│  ├─ fix-latest-yml.mjs             # recalcule latest.yml après signature de l'installateur
 │  └─ configure-azure-signing.mjs    # active Azure Trusted Signing en CI si configuré
-├─ build/               # KYARA BOT.svg, icônes, visuels NSIS, certificats publics, exemples de signature
+├─ build/               # KYARA BOT.svg, icônes, visuels NSIS, certificats publics, app-update.yml
 ├─ LICENSE.txt          # licence d'utilisation (EULA, affichée par l'installateur)
 ├─ SMARTSCREEN.md       # guide complet SmartScreen / Defender (contournements et certificats)
 └─ package.json         # scripts, dépendances et configuration electron-builder

@@ -1,0 +1,4 @@
+provider: github
+owner: lenny59tmtc
+repo: kyara-bot-electron
+updaterCacheDirName: kyara-bot-electron-updater

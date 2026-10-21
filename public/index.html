@@ -461,25 +461,69 @@ function renderUpdate() {
     $("ver").textContent = updateInfo.currentVersion;
     $("footerVer").textContent = "v" + updateInfo.currentVersion;
   }
+  const auto = updateInfo?.auto;
+  const phase = auto?.phase;
+  const latest = auto?.latestVersion || updateInfo?.latestVersion;
   const available = updateInfo?.updateAvailable === true;
-  btn.hidden = !available;
+  const autoReady = phase === "downloaded";
+  const autoDownloading = phase === "downloading" || phase === "available";
+  const manualFallback = available && !autoReady && !autoDownloading;
+  const visible = autoReady || autoDownloading || manualFallback;
+  btn.hidden = !visible;
+
   const footerState = $("footerState");
   if (footerState) {
-    footerState.textContent = updateInfo?.error
-      ? "vérification des mises à jour indisponible"
-      : available
-        ? `mise à jour v${updateInfo.latestVersion} disponible`
-        : updateInfo?.latestVersion
-          ? "à jour"
-          : "tableau de bord local";
+    if (autoReady) footerState.textContent = `mise à jour v${latest || ""} prête — redémarrer`;
+    else if (phase === "downloading") footerState.textContent = `téléchargement de la mise à jour ${Number(auto?.percent) || 0} %`;
+    else if (phase === "available") footerState.textContent = `mise à jour v${latest || ""} en cours de téléchargement`;
+    else if (phase === "error") footerState.textContent = "mise à jour automatique indisponible";
+    else if (available) footerState.textContent = `mise à jour v${latest || ""} disponible`;
+    else if (updateInfo?.error) footerState.textContent = "vérification des mises à jour indisponible";
+    else if (updateInfo?.latestVersion) footerState.textContent = "à jour";
+    else footerState.textContent = "tableau de bord local";
   }
-  if (!available) return;
+
+  if (!visible) {
+    btn.onclick = null;
+    return;
+  }
+  if (autoReady) {
+    btn.innerHTML = `<span class="ub-icon">⟳</span><span>Mise à jour <b>v${escapeHtml(latest || "?")}</b> prête — <b>Redémarrer</b></span>`;
+    btn.title = "Installe la mise à jour et relance l'application";
+    btn.onclick = (event) => {
+      event.preventDefault();
+      restartForUpdate();
+    };
+    return;
+  }
+  if (autoDownloading) {
+    const percent = Math.max(0, Math.min(100, Number(auto?.percent) || 0));
+    btn.innerHTML = `<span class="ub-icon">↓</span><span>Téléchargement de la mise à jour <b>v${escapeHtml(latest || "?")}</b> — <b>${percent} %</b></span>`;
+    btn.title = "Téléchargement automatique en cours";
+    btn.onclick = (event) => event.preventDefault();
+    return;
+  }
   const target = updateInfo.downloadUrl || updateInfo.releaseUrl || "";
-  btn.innerHTML = `<span class="ub-icon">↑</span><span>Mise à jour <b>v${escapeHtml(updateInfo.latestVersion || "?")}</b> disponible</span>`;
+  btn.innerHTML = `<span class="ub-icon">↑</span><span>Mise à jour <b>v${escapeHtml(latest || "?")}</b> disponible</span>`;
+  btn.title = "Télécharge la nouvelle version";
   btn.onclick = (event) => {
     event.preventDefault();
     if (target) window.open(target, "_blank");
   };
+}
+
+async function restartForUpdate() {
+  try {
+    const response = await fetch("/api/update/restart", { method: "POST" });
+    const result = await response.json();
+    if (!result.ok) {
+      toast("La mise à jour n'est pas encore prête — réessaie dans un instant");
+      return;
+    }
+    toast("Redémarrage pour installer la mise à jour…");
+  } catch {
+    toast("Impossible de redémarrer automatiquement");
+  }
 }
 
 async function requestLogin() {
@@ -1056,7 +1100,8 @@ async function tickNext() {
   tickNext();
   setInterval(refreshHistory, 30000);
   setInterval(refreshTrades, 30000);
-  setInterval(refreshUpdate, 60000);
+  // Vérification fréquente pour afficher la progression du téléchargement auto.
+  setInterval(refreshUpdate, 10000);
 })();
 </script>
 </body>

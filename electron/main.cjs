@@ -14,6 +14,7 @@
  */
 
 const { app, BrowserWindow, Menu, Tray, nativeImage, screen, shell, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -30,6 +31,9 @@ const ICON_ICO = path.join(APP_ROOT, "build", "icon.ico");
 const APP_TITLE = "Kyara Bot";
 const REPO_URL = "https://github.com/lenny59tmtc/kyara-bot-electron";
 const DEV = !app.isPackaged;
+const PORTABLE = Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+const UPDATER_SUPPORTED = !DEV && process.platform === "win32" && !PORTABLE;
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 // Permet de stocker les données Electron dans un dossier personnalisé
 // (utile pour les tests ou une installation « portable »).
@@ -92,6 +96,162 @@ function appTmpDir() {
 
 function serverLogPath() {
   return path.join(logsDir(), "server.log");
+}
+
+// ---------------------------------------------------------------------------
+// Mise à jour automatique (electron-updater)
+// ---------------------------------------------------------------------------
+
+function updateDir() {
+  const dir = path.join(homeDir(), "update");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function updateStatusPath() {
+  return path.join(updateDir(), "status.json");
+}
+
+function updateRestartPath() {
+  return path.join(updateDir(), "restart.request");
+}
+
+function updaterLogPath() {
+  return path.join(logsDir(), "updater.log");
+}
+
+let updateStatus = null;
+let updaterCheckTimer = null;
+let restartWatcher = null;
+
+function writeUpdateStatus(patch) {
+  updateStatus = {
+    ...(updateStatus || { phase: "idle", supported: UPDATER_SUPPORTED }),
+    ...patch,
+    currentVersion: app.getVersion(),
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    const file = updateStatusPath();
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(updateStatus, null, 2));
+    fs.renameSync(tmp, file);
+  } catch {}
+}
+
+function updaterLog(level, message) {
+  const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
+  try {
+    fs.appendFileSync(updaterLogPath(), line);
+  } catch {}
+  if (DEV) console.log(`[updater] ${message}`);
+}
+
+async function checkForUpdatesNow(reason = "manual") {
+  if (!UPDATER_SUPPORTED) {
+    return { ok: false, reason: DEV ? "dev" : PORTABLE ? "portable" : "unsupported" };
+  }
+  try {
+    updaterLog("info", `vérification des mises à jour (${reason})`);
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (e) {
+    writeUpdateStatus({ phase: "error", error: String(e?.message || e) });
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+function startRestartWatcher() {
+  if (restartWatcher) return;
+  restartWatcher = setInterval(() => {
+    try {
+      const file = updateRestartPath();
+      if (!fs.existsSync(file)) return;
+      fs.unlinkSync(file);
+      if (updateStatus?.phase !== "downloaded") return;
+      updaterLog("info", "redémarrage demandé pour installer la mise à jour");
+      isQuitting = true;
+      stopServer();
+      setTimeout(() => autoUpdater.quitAndInstall(true, true), 400);
+    } catch {}
+  }, 1000);
+  restartWatcher.unref?.();
+}
+
+function initAutoUpdater() {
+  if (DEV) {
+    writeUpdateStatus({ phase: "disabled", reason: "dev", supported: false });
+    return;
+  }
+  if (PORTABLE) {
+    writeUpdateStatus({ phase: "disabled", reason: "portable", supported: false });
+    return;
+  }
+  if (!UPDATER_SUPPORTED) {
+    writeUpdateStatus({ phase: "disabled", reason: process.platform, supported: false });
+    return;
+  }
+  try {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.allowPrerelease = false;
+    autoUpdater.logger = {
+      info: (m) => updaterLog("info", String(m)),
+      warn: (m) => updaterLog("warn", String(m)),
+      error: (m) => updaterLog("error", String(m)),
+      debug: (m) => updaterLog("debug", String(m)),
+    };
+    writeUpdateStatus({ phase: "idle", supported: true, error: null });
+
+    autoUpdater.on("checking-for-update", () => writeUpdateStatus({ phase: "checking", error: null }));
+    autoUpdater.on("update-available", (info) => {
+      updaterLog("info", `mise à jour disponible : ${info?.version}`);
+      writeUpdateStatus({ phase: "available", latestVersion: info?.version || null, percent: 0, error: null });
+    });
+    autoUpdater.on("update-not-available", (info) => {
+      writeUpdateStatus({ phase: "idle", latestVersion: info?.version || null, percent: null, error: null });
+    });
+    autoUpdater.on("download-progress", (progress) => {
+      writeUpdateStatus({
+        phase: "downloading",
+        percent: Math.round(progress?.percent || 0),
+        transferred: progress?.transferred || 0,
+        total: progress?.total || 0,
+        bytesPerSecond: progress?.bytesPerSecond || 0,
+      });
+    });
+    autoUpdater.on("update-downloaded", (info) => {
+      updaterLog("info", `mise à jour téléchargée : ${info?.version}`);
+      writeUpdateStatus({
+        phase: "downloaded",
+        latestVersion: info?.version || null,
+        percent: 100,
+        downloadedAt: new Date().toISOString(),
+        canRestart: true,
+        error: null,
+      });
+      try {
+        tray?.displayBalloon?.({
+          title: APP_TITLE,
+          content: `Mise à jour ${info?.version} prête. Redémarre l'application pour l'installer.`,
+          iconType: "info",
+        });
+      } catch {}
+    });
+    autoUpdater.on("error", (error) => {
+      updaterLog("error", String(error?.stack || error));
+      writeUpdateStatus({ phase: "error", error: String(error?.message || error) });
+    });
+
+    // Vérification automatique : quelques secondes après le lancement, puis toutes les 4 h.
+    setTimeout(() => checkForUpdatesNow("startup"), 6000);
+    updaterCheckTimer = setInterval(() => checkForUpdatesNow("periodic"), UPDATE_CHECK_INTERVAL_MS);
+    updaterCheckTimer.unref?.();
+    startRestartWatcher();
+  } catch (e) {
+    writeUpdateStatus({ phase: "error", error: String(e?.message || e) });
+    updaterLog("error", String(e?.stack || e));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -560,7 +720,29 @@ function buildMenu() {
       label: "Aide",
       submenu: [
         { label: "Dépôt GitHub", click: () => shell.openExternal(REPO_URL) },
-        { label: "Mises à jour", click: () => shell.openExternal(`${REPO_URL}/releases`) },
+        {
+          label: "Rechercher une mise à jour",
+          click: async () => {
+            await checkForUpdatesNow("menu");
+            const status = updateStatus || {};
+            let message;
+            if (status.phase === "disabled") {
+              message = "Mises à jour automatiques indisponibles dans cette version (portable ou développement). Télécharge la dernière version depuis la page des Releases.";
+            } else if (status.phase === "error") {
+              message = `Vérification impossible : ${status.error || "erreur inconnue"}`;
+            } else if (status.phase === "downloaded") {
+              message = `Mise à jour ${status.latestVersion || ""} prête. Elle s'installe à la fermeture, ou clique sur « Redémarrer » dans le tableau de bord.`;
+            } else {
+              message = "Recherche lancée. Le tableau de bord affiche la progression du téléchargement.";
+            }
+            await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+              type: "info",
+              title: "Mises à jour",
+              message,
+            });
+          },
+        },
+        { label: "Page des Releases", click: () => shell.openExternal(`${REPO_URL}/releases`) },
         {
           label: "À propos",
           click: () =>
@@ -598,6 +780,7 @@ async function bootstrap() {
     await startServer();
     createMainWindow();
     closeSplash();
+    initAutoUpdater();
   } catch (e) {
     closeSplash();
     await dialog.showMessageBox({

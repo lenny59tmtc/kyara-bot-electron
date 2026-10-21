@@ -51,6 +51,7 @@ jobs:
             dist/*Setup*.exe
             dist/*Portable*.exe
             dist/*.zip
+            dist/latest.yml
           generate_release_notes: true
           overwrite: true
 
@@ -62,4 +63,5 @@ jobs:
             dist/*Setup*.exe
             dist/*Portable*.exe
             dist/*.zip
+            dist/latest.yml
           if-no-files-found: error

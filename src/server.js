@@ -4,7 +4,7 @@ import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats } from "./store.js";
 import { getDuplicates, clearMarketCache } from "./market.js";
-import { getUpdateState } from "./update.js";
+import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart } from "./update.js";
 import { bus } from "./bus.js";
 
 const MIME = {
@@ -32,7 +32,10 @@ export function createServer(bot) {
       return json(res, bot.snapshot());
     }
     if (url.pathname === "/api/update") {
-      return json(res, getUpdateState());
+      return json(res, { ...getUpdateState(), auto: getAutoUpdateState() });
+    }
+    if (url.pathname === "/api/update/restart" && req.method === "POST") {
+      return json(res, requestAutoUpdateRestart());
     }
     if (url.pathname === "/api/login" && req.method === "POST") {
       try {

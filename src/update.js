@@ -106,3 +106,39 @@ export function startUpdateChecker() {
   timer.unref?.();
   return timer;
 }
+
+// ---------------------------------------------------------------------------
+// État de la mise à jour automatique
+// (écrit par le processus Electron principal dans homeDir()/update/status.json
+// et lu par le serveur local pour l'afficher dans le tableau de bord).
+// ---------------------------------------------------------------------------
+
+const HOME = process.env.KYARA_HOME ? path.resolve(process.env.KYARA_HOME) : path.join(SOURCE_DIR, "..");
+const AUTO_STATUS_PATH = path.join(HOME, "update", "status.json");
+const RESTART_REQUEST_PATH = path.join(HOME, "update", "restart.request");
+
+export function getAutoUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(AUTO_STATUS_PATH, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Demande au processus Electron principal de redémarrer et d'installer la
+ * mise à jour déjà téléchargée (il surveille restart.request).
+ */
+export function requestAutoUpdateRestart() {
+  const status = getAutoUpdateState();
+  if (!status || status.phase !== "downloaded") {
+    return { ok: false, reason: !status ? "no_status" : `phase:${status.phase}` };
+  }
+  try {
+    fs.mkdirSync(path.dirname(RESTART_REQUEST_PATH), { recursive: true });
+    fs.writeFileSync(RESTART_REQUEST_PATH, new Date().toISOString());
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
