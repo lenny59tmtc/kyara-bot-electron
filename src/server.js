@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
-import { getDuplicates, clearMarketCache } from "./market.js";
+import { getDuplicates } from "./market.js";
 import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart } from "./update.js";
 import { bus } from "./bus.js";
 
@@ -79,7 +79,6 @@ export function createServer(bot) {
     }
     if (url.pathname === "/api/duplicates") {
       try {
-        if (url.searchParams.get("refresh") === "1") clearMarketCache();
         await bot.ensureBrowser();
         if (bot.state.authenticated !== true) {
           return json(res, {
@@ -157,6 +156,7 @@ export function createServer(bot) {
       if (typeof body.autoSell === "boolean") patch.autoSell = body.autoSell;
       if (RARITY_ORDER.includes(body.sellMaxRarity)) patch.sellMaxRarity = body.sellMaxRarity;
       if (["fast", "normal", "patient"].includes(body.sellPricing)) patch.sellPricing = body.sellPricing;
+      if (typeof body.sellStealth === "boolean") patch.sellStealth = body.sellStealth;
       if (typeof body.sellDelayMin === "number") {
         patch.sellDelayMin = Math.min(Math.max(Math.round(body.sellDelayMin), 5), 600);
       }

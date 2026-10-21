@@ -414,6 +414,14 @@
             <option value="patient">Patient — prix plus haut</option>
           </select>
         </label>
+        <label class="switch-row">
+          <span>Mode discret (anti-détection)</span>
+          <span class="switch"><input type="checkbox" id="sellStealth" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          Mode discret : pauses humaines (plancher 25 s), ordre aléatoire, activité souris/scroll, prix ±3 %,
+          sessions limitées et pauses de 2 à 7 min.
+        </p>
         <label>Délai aléatoire entre deux ventes (secondes)
           <div class="row">
             <input type="number" id="sellDelayMin" min="5" max="600" step="5" />
@@ -1053,6 +1061,7 @@ function renderSellStatus() {
     selling: "mise en vente en cours",
     idle: "en veille — aucun doublon éligible",
     rate_limited: "en pause (limite API)",
+    cooldown: "pause discrète (anti-détection)",
     error: `erreur : ${seller?.lastError || "inconnue"}`,
   };
   if ($("sellState")) {
@@ -1065,8 +1074,9 @@ function renderSellStatus() {
   if ($("sellHint")) {
     const rarity = RARITY[cfg.sellMaxRarity]?.[0] || cfg.sellMaxRarity || "Rare";
     const pricing = { fast: "Vite", normal: "Normal", patient: "Patient" }[cfg.sellPricing] || "Normal";
+    const stealth = cfg.sellStealth !== false;
     $("sellHint").textContent = enabled
-      ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s`
+      ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s · ${stealth ? "mode discret" : "mode rapide"}`
       : "Active la vente automatique dans le panneau Configuration (onglet Ouvertures).";
   }
   updateSellCountdown();
@@ -1142,6 +1152,7 @@ function applyConfig(c) {
   $("sellPricing").value = c.sellPricing || "normal";
   $("sellDelayMin").value = c.sellDelayMin ?? 30;
   $("sellDelayMax").value = c.sellDelayMax ?? 90;
+  $("sellStealth").checked = c.sellStealth !== false;
   const save = $("save");
   if (save) save.textContent = "Enregistrer";
 }
@@ -1178,6 +1189,7 @@ $("save").addEventListener("click", async () => {
         sellPricing: $("sellPricing").value,
         sellDelayMin: Number($("sellDelayMin").value) || 30,
         sellDelayMax: Number($("sellDelayMax").value) || 90,
+        sellStealth: $("sellStealth").checked,
       }),
     });
     applyConfig(await r.json());
@@ -1509,7 +1521,6 @@ function renderDup() {
       <th>En trop</th>
       ${th("median", "Médiane 7j")}
       <th>Dernière vente</th>
-      <th>Plus basse annonce</th>
       ${th("advice", "Prix conseillé")}
       <th>Prix rapide</th>
       ${th("sales", "Ventes 7j")}
@@ -1533,10 +1544,9 @@ function renderDup() {
             <td>×${r.extras}</td>
             <td>${r.median7d ?? "—"} ⚡</td>
             <td>${r.lastPrice != null ? `${r.lastPrice} ⚡` : "—"}<div class="sub2">${r.lastAt ? new Date(r.lastAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</div></td>
-            <td>${r.lowestAsk != null ? `${r.lowestAsk} ⚡ <span class="sub2">(${r.listings} annonce${r.listings > 1 ? "s" : ""})</span>` : '<span class="sub2">aucune</span>'}</td>
             <td><div class="sug"><span class="price">${r.advice ?? "—"} ⚡</span></div><div class="sub2">${escapeHtml(r.logic)}</div></td>
             <td>${r.quick != null ? `${r.quick} ⚡` : "—"}<div class="sub2">vend vite</div></td>
-            <td>${r.sales7d ?? 0}${r.saturated ? '<div class="sub2" style="color:#fa6">marché saturé</div>' : ""}</td>
+            <td>${r.sales7d ?? 0}</td>
             <td class="price">${val(r)} ⚡</td>
             <td><span class="tag ${tagCls}">${escapeHtml(r.state)}</span></td>
             <td>

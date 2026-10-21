@@ -43,6 +43,8 @@ export class SellerWorker {
       activeListings: 0,
       pendingChakra: 0,
       noDuplicates: false,
+      stealth: true,
+      sessionListed: 0,
     };
   }
 
@@ -88,12 +90,87 @@ export class SellerWorker {
     }
   }
 
+  random(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
+  randInt(min, max) {
+    return Math.floor(this.random(min, max + 1));
+  }
+
+  shuffle(list) {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }
+
+  // Activité « humaine » avant une vente : souris qui se déplace, petit scroll.
+  async humanActivity() {
+    if (this.bot.config.sellStealth === false) return;
+    try {
+      const page = this.bot.page;
+      if (!page || page.isClosed() || !page.url().startsWith("https://kyara.games")) return;
+      const viewport = page.viewportSize() || { width: 1280, height: 800 };
+      const moves = this.randInt(1, 3);
+      for (let i = 0; i < moves; i++) {
+        const x = 30 + Math.random() * Math.max(60, viewport.width - 60);
+        const y = 30 + Math.random() * Math.max(60, viewport.height - 60);
+        await page.mouse.move(x, y, { steps: this.randInt(4, 13) }).catch(() => {});
+        await sleep(this.randInt(90, 320));
+      }
+      if (Math.random() < 0.3) {
+        await page.mouse.wheel(0, this.randInt(-80, 180)).catch(() => {});
+        await sleep(this.randInt(150, 450));
+      }
+    } catch {}
+  }
+
+  // Prix très légèrement variable (±3 %) pour éviter des annonces identiques.
+  jitterPrice(price, rarity) {
+    if (this.bot.config.sellStealth === false) return price;
+    const floor = RECYCLE_MIN[rarity] ?? 1;
+    const pct = (Math.random() - 0.5) * 0.06;
+    return Math.max(floor, Math.round(price * (1 + pct)));
+  }
+
+  sessionPauseMs() {
+    // Pause entre deux sessions de vente : 2 à 7 minutes, jamais fixe.
+    return this.randInt(120000, 420000);
+  }
+
+  scanPauseMs() {
+    if (this.bot.config.sellStealth === false) return 60000;
+    return this.randInt(45000, 115000);
+  }
+
+  saleWaitMs(cfg) {
+    const configuredMin = Math.max(5, Number(cfg.sellDelayMin) || 30);
+    const configuredMax = Math.max(configuredMin, Number(cfg.sellDelayMax) || 90);
+    if (cfg.sellStealth === false) {
+      return Math.round(this.random(configuredMin, configuredMax) * 1000);
+    }
+    // Mode discret : plancher de 25 s, marge haute +35 %, jitter log-normal,
+    // et pauses occasionnelles plus longues.
+    const min = Math.max(25, configuredMin);
+    const max = Math.max(min, Math.round(configuredMax * 1.35));
+    let wait = this.random(min, max) * 1000;
+    wait *= 0.8 + Math.random() * 0.7;
+    if (Math.random() < 0.18) wait += this.randInt(10000, 45000);
+    if (this.state.sessionListed > 0 && this.state.sessionListed >= this.randInt(3, 6)) {
+      wait += this.randInt(60000, 180000);
+    }
+    return Math.round(wait);
+  }
+
   async loop() {
     while (this.running) {
       const cfg = this.bot.config;
       this.state.enabled = cfg.autoSell === true;
       this.state.strategy = cfg.sellPricing || "normal";
       this.state.maxRarity = cfg.sellMaxRarity || "R";
+      this.state.stealth = cfg.sellStealth !== false;
 
       if (this.bot.isRateLimited?.()) {
         this.state.phase = "rate_limited";
@@ -138,25 +215,50 @@ export class SellerWorker {
 
         if (!candidates.length) {
           this.state.phase = "idle";
-          this.state.nextAt = new Date(Date.now() + 60000).toISOString();
+          const wait = this.scanPauseMs();
+          this.state.nextAt = new Date(Date.now() + wait).toISOString();
           if (Date.now() - this.lastNoDupLog > 10 * 60 * 1000) {
             this.lastNoDupLog = Date.now();
             this.bot.log("info", "Ventes · aucun doublon éligible à vendre pour l'instant");
           }
-          await this.idle(60000);
+          await this.idle(wait, true);
           continue;
         }
 
         this.state.phase = "selling";
         this.state.listedThisRun = 0;
+        this.state.sessionListed = 0;
+        const sessionLimit = this.state.stealth ? this.randInt(2, 6) : candidates.length;
+        if (this.state.stealth) {
+          await this.humanActivity();
+          await this.idle(this.randInt(1200, 4000), true);
+          this.shuffle(candidates);
+        }
         const seen = new Set();
         for (const row of candidates) {
           if (!this.running || this.bot.config.autoSell !== true || !this.bot.state.authenticated) break;
+          if (this.state.stealth && this.state.sessionListed >= sessionLimit) {
+            const pause = this.sessionPauseMs();
+            this.state.phase = "cooldown";
+            this.state.nextAt = new Date(Date.now() + pause).toISOString();
+            this.bot.log(
+              "info",
+              `Ventes · pause discrète de ${Math.round(pause / 1000)} s après ${this.state.sessionListed} annonce(s)`,
+            );
+            await this.idle(pause, true);
+            break;
+          }
           if (seen.has(row.characterId)) continue;
           seen.add(row.characterId);
 
+          if (this.state.stealth) {
+            await this.humanActivity();
+            await this.idle(this.randInt(1500, 4500), true);
+          }
+
           const cfgNow = this.bot.config;
-          const price = this.priceFor(row, cfgNow.sellPricing);
+          let price = this.priceFor(row, cfgNow.sellPricing);
+          if (this.state.stealth) price = this.jitterPrice(price, row.rarity);
           const result = await this.bot.sell(row.characterId, price, {
             rarity: row.rarity,
             name: row.name,
@@ -177,9 +279,11 @@ export class SellerWorker {
               durationHours: result.durationHours,
               qty: row.qty,
               extras: row.extras,
+              stealth: this.state.stealth,
             });
             if (record.listingId) this.listedById.set(record.listingId, record);
             this.state.listedThisRun++;
+            this.state.sessionListed++;
             this.state.last = record;
             this.state.lastAt = record.at;
             this.bot.log(
@@ -200,16 +304,15 @@ export class SellerWorker {
             await this.idle(5000);
           }
 
-          const min = Math.max(5, Number(cfgNow.sellDelayMin) || 30);
-          const max = Math.max(min, Number(cfgNow.sellDelayMax) || 90);
-          const wait = Math.round((min + Math.random() * (max - min)) * 1000);
+          const wait = this.saleWaitMs(cfgNow);
           this.state.nextAt = new Date(Date.now() + wait).toISOString();
           await this.idle(wait, true);
         }
 
         this.state.phase = "idle";
-        this.state.nextAt = new Date(Date.now() + 60000).toISOString();
-        await this.idle(60000, true);
+        const rescanWait = this.scanPauseMs();
+        this.state.nextAt = new Date(Date.now() + rescanWait).toISOString();
+        await this.idle(rescanWait, true);
       } catch (error) {
         this.state.phase = "error";
         this.state.lastError = error?.message || String(error);

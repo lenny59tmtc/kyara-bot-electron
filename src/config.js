@@ -52,6 +52,7 @@ const DEFAULTS = {
   sellPricing: "normal",
   sellDelayMin: 30,
   sellDelayMax: 90,
+  sellStealth: true,
 };
 
 export const RECYCLE_MIN = { C: 1, U: 1, R: 3, E: 10, L: 40, M: 150 };

@@ -7,6 +7,17 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.5.1
+
+- **Analyse de marché sans rate limit** : les prix proviennent directement de `/me/collection` (médianes et
+  dernière vente). Les centaines de requêtes `/market/listings` par personnage ont été supprimées : l'analyse
+  prend environ 1 seconde, même avec des centaines de doublons, et peut donc alimenter la vente auto.
+- **Mode discret de vente auto (activé par défaut)** : pauses humaines aléatoires (plancher 25 s), ordre des
+  annonces mélangé, activité souris/scroll, variation de prix ±3 %, sessions limitées à 2–6 annonces puis pause
+  de 2 à 7 minutes — pour éviter les schémas réguliers détectables.
+- **Résumé corrigé** : « Cartes en trop » compte désormais les exemplaires réellement en trop (et non la quantité totale).
+- Le panneau Ventes & bilan indique le mode discret actif.
+
 ## Nouveautés de la version 1.5.0
 
 - **Analyse de marché fiabilisée** : la page est vérifiée/ramenée sur `kyara.games` avant l'analyse, les erreurs
@@ -187,7 +198,8 @@ La vente automatique est **désactivée par défaut**. Elle se configure dans le
 | Vente automatique activée | **désactivée** | Interrupteur principal |
 | Rareté maximale des doublons | **Rare** | Vend les doublons jusqu'à cette rareté (Commun → Mythique) |
 | Stratégie de prix | **Normal** | `Vite` = 75 % du prix conseillé, `Normal` = prix conseillé, `Patient` = médiane +8 % |
-| Délai aléatoire entre deux ventes | **30 à 90 s** | Min/max en secondes (5–600) |
+| Mode discret (anti-détection) | **activé** | Pauses humaines, ordre aléatoire, souris/scroll, prix ±3 %, sessions limitées et pauses longues |
+| Délai aléatoire entre deux ventes | **30 à 90 s** | Min/max en secondes (5–600) ; en mode discret, plancher de 25 s et pauses supplémentaires |
 | Type / durée d'annonce | vente directe, 12 h | Réutilise les réglages existants |
 
 Fonctionnement :
@@ -317,9 +329,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.5.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.5.0.exe` — exécutable portable
-- `Kyara-Bot-1.5.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.5.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.5.1.exe` — exécutable portable
+- `Kyara-Bot-1.5.1-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -343,8 +355,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
 ---

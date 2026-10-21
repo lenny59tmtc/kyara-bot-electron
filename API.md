@@ -183,7 +183,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | GET | `/api/sales` | Ventes : `{stats, history, seller, auto}` — stats chakra/gagné (24 h, 60 min, moyenne/h, tranches horaires) |
 | GET | `/api/duplicates` | Analyse du marché : `{rows, summary}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
 | GET | `/api/config` | Configuration actuelle |
-| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax }` |
+| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
 | POST | `/api/bot/start` | Démarre le bot |
@@ -207,11 +207,13 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
 
 - **Désactivé par défaut** (`config.autoSell === false`, UI et fichier de configuration).
 - Paramètres : `sellMaxRarity` (C/U/R/E/L/M), `sellPricing` (`fast` | `normal` | `patient`),
-  `sellDelayMin` / `sellDelayMax` (secondes, 5–600), `saleType` / `saleDurationHours` pour l'annonce.
-- Cycle : analyse `/api/me/collection` + marché (`getDuplicates`), ne garde que les doublons **vendables**,
-  d'une rareté ≤ `sellMaxRarity`, puis crée une annonce par doublon avec le prix calculé par la stratégie :
-  `fast` = 75 % du prix conseillé, `normal` = prix conseillé (sous l'annonce la plus basse / médiane),
-  `patient` = médiane +8 % (plafonnée à l'annonce la plus basse). Délai aléatoire entre chaque annonce.
+  `sellDelayMin` / `sellDelayMax` (secondes, 5–600), `sellStealth` (mode discret, défaut `true`),
+  `saleType` / `saleDurationHours` pour l'annonce.
+- Cycle : analyse `/api/me/collection` via `getDuplicates` (sans requête marché par personnage), ne garde que les
+  doublons **vendables**, d'une rareté ≤ `sellMaxRarity`, puis crée une annonce par doublon avec le prix calculé
+  par la stratégie : `fast` = 75 % du prix conseillé, `normal` = prix conseillé (médianes de la collection),
+  `patient` = médiane +8 %. En mode discret : plancher de 25 s, pauses humaines, ordre mélangé, activité
+  souris/scroll, jitter de prix ±3 %, sessions de 2–6 annonces suivies d'une pause de 2–7 minutes.
 - `GET /api/me/market` est analysé périodiquement : les annonces `status: "sold"` sont écrites dans
   `data/sales.jsonl` (`kind: "sold"`, `finalPrice`) → chakra réellement gagné pour le bilan ; `kind: "listed"`
   trace les mises en vente. Un premier scan mémorise les ventes déjà soldées sans les compter (bilan démarré
