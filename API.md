@@ -182,6 +182,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | GET | `/api/trades?limit=200` | Échanges : `{trades, buckets, stats, auto, state}` (`buckets` = tranches de 10 min) |
 | GET | `/api/sales` | Ventes : `{stats, history, seller, market, auto}` — `market` = `{activeListings, maxListings, totalListings, soldListings}` |
 | GET | `/api/duplicates` | Analyse du marché : `{rows, summary, market}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
+| GET | `/api/series` | Albums d'anime : `{rows, summary}` — par série : `owned`, `total`, `copies`, `missing`, `completion`, `completed`, `rarities` |
 | GET | `/api/config` | Configuration actuelle |
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |

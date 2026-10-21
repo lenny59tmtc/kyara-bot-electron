@@ -236,6 +236,39 @@
   .sell-item .si-sub { color: var(--dim); font-size: 11px; }
   .sell-item .si-price { font-weight: 800; color: var(--gold); white-space: nowrap; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* --- Albums / séries --- */
+  .series-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap: 12px;
+  }
+  .series-grid .empty { grid-column: 1 / -1; }
+  .series-card {
+    display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--panel2);
+  }
+  .series-card.done { border-color: rgba(62, 207, 142, .5); box-shadow: 0 0 0 1px rgba(62, 207, 142, .15) inset; }
+  .series-cover { height: 118px; background: #140f16; overflow: hidden; }
+  .series-cover img { width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: .95; }
+  .series-body { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; }
+  .series-name {
+    font-weight: 800; font-size: 14px; line-height: 1.25; min-height: 2.5em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .series-meta { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 12px; color: var(--dim); }
+  .series-meta b { color: var(--txt); }
+  .series-badge { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .series-badge.done { background: #123b2b; border-color: #1d6b4b; color: #6fe3ad; }
+  .series-bar { height: 7px; border-radius: 999px; background: #211e29; overflow: hidden; }
+  .series-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--acc), var(--gold)); }
+  .series-card.done .series-bar i { background: linear-gradient(90deg, #2fbf82, #7ce8b4); }
+  .series-sub { font-size: 11px; color: var(--dim); }
+  .series-rar { display: flex; flex-wrap: wrap; gap: 4px; }
+  @media (max-width: 560px) {
+    .series-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .series-cover { height: 96px; }
+  }
   .market-msg {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     margin: 0 0 12px; padding: 10px 12px; border-radius: 10px;
@@ -250,6 +283,7 @@
   #dupTable { overflow-x: auto; }
   #dupTable table { min-width: 1120px; }
   main { max-width: 1700px; margin: 0 auto; width: 100%; }
+  #viewSeries { grid-template-columns: minmax(0, 1fr); }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
 
   @media (max-width: 1180px) {
@@ -309,6 +343,7 @@
   <nav class="tabs">
     <button id="tabOpen" class="on">Ouvertures</button>
     <button id="tabDup">Doublons à vendre</button>
+    <button id="tabSeries">Séries</button>
     <button id="tabTrade">Échanges</button>
     <button id="tabSell">Ventes & bilan</button>
   </nav>
@@ -455,6 +490,39 @@
       </div>
     </div>
   </aside>
+</main>
+
+<main id="viewSeries" style="display:none">
+  <section>
+    <div class="panel">
+      <div class="ohead">
+        <h2 style="margin:0">Albums d'anime</h2>
+        <div class="spacer"></div>
+        <span class="sub2" id="seriesAt"></span>
+        <button class="ghost" id="seriesRefresh">Rafraîchir</button>
+      </div>
+      <div class="market-msg" id="seriesMsg" hidden></div>
+      <div class="stats" id="seriesStats"></div>
+      <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
+        <input type="search" id="seriesQ" placeholder="Rechercher une série…" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;min-width:220px" />
+        <select id="seriesFilter" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="owned">Possédées (≥ 1 carte)</option>
+          <option value="owned5">≥ 5 cartes possédées</option>
+          <option value="size5">Albums de ≥ 5 cartes</option>
+          <option value="completed">Albums complétés</option>
+          <option value="incomplete">Albums non complétés</option>
+          <option value="all">Toutes les séries</option>
+        </select>
+        <select id="seriesSort" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="owned">Cartes possédées ↑</option>
+          <option value="total">Taille de l'album ↑</option>
+          <option value="completion">Complétion ↑</option>
+          <option value="name">Nom A → Z</option>
+        </select>
+      </div>
+      <div id="seriesGrid" class="series-grid"><div class="empty">Chargement…</div></div>
+    </div>
+  </section>
 </main>
 
 <main id="viewTrade" style="display:none">
@@ -1397,29 +1465,190 @@ let dupLoading = false;
 let dupStartedAt = 0;
 let dupCooldownUntil = 0;
 let dupSort = { key: "value", dir: -1 };
+let seriesData = null;
+let seriesLoading = false;
+
+function showSeriesMessage(kind, text, action) {
+  const box = $("seriesMsg");
+  if (!box) return;
+  box.hidden = false;
+  box.className = `market-msg ${kind || ""}`.trim();
+  box.innerHTML = `<span>${escapeHtml(text)}</span>`;
+  if (action) {
+    const button = document.createElement("button");
+    button.className = "ghost";
+    button.textContent = action.label;
+    button.addEventListener("click", action.run);
+    box.appendChild(button);
+  }
+}
+
+function seriesCard(row) {
+  const done = !!row.completed;
+  const percent = Math.max(0, Math.min(100, Number(row.completion) || 0));
+  const rarities = ORDER.filter((rarity) => row.rarities?.[rarity]?.total)
+    .map(
+      (rarity) =>
+        `<span class="rch" style="color:${RARITY[rarity][1]}">${RARITY[rarity][0]}: ${row.rarities[rarity].owned}/${row.rarities[rarity].total}</span>`,
+    )
+    .join("");
+  return `<div class="series-card ${done ? "done" : ""}">
+    <div class="series-cover">${row.image ? `<img src="${escapeHtml(row.image)}" loading="lazy" onerror="this.remove()" alt="" />` : ""}</div>
+    <div class="series-body">
+      <div class="series-name" title="${escapeHtml(row.series)}">${escapeHtml(row.series)}</div>
+      <div class="series-meta">
+        <span><b>${row.owned}</b> / ${row.total} cartes</span>
+        <span class="series-badge ${done ? "done" : ""}">${done ? "✓ Complété" : `${row.missing} manquante(s)`}</span>
+      </div>
+      <div class="series-bar"><i style="width:${percent}%"></i></div>
+      <div class="series-sub">${percent}% · ${row.copies} exemplaire(s)</div>
+      <div class="series-rar">${rarities}</div>
+    </div>
+  </div>`;
+}
+
+function renderSeries() {
+  if (!seriesData?.rows) return;
+  const query = $("seriesQ").value.trim().toLowerCase();
+  const filter = $("seriesFilter").value;
+  const sort = $("seriesSort").value;
+  let rows = seriesData.rows.filter((row) => {
+    if (query && !String(row.series).toLowerCase().includes(query)) return false;
+    switch (filter) {
+      case "owned":
+        return row.owned >= 1;
+      case "owned5":
+        return row.owned >= 5;
+      case "size5":
+        return row.total >= 5;
+      case "completed":
+        return row.completed;
+      case "incomplete":
+        return !row.completed;
+      default:
+        return true;
+    }
+  });
+  if (sort === "total") {
+    rows.sort((a, b) => a.total - b.total || a.owned - b.owned || a.series.localeCompare(b.series, "fr"));
+  } else if (sort === "name") {
+    rows.sort((a, b) => a.series.localeCompare(b.series, "fr"));
+  } else if (sort === "completion") {
+    rows.sort((a, b) => a.completion - b.completion || a.owned - b.owned || a.series.localeCompare(b.series, "fr"));
+  } else {
+    rows.sort((a, b) => a.owned - b.owned || a.total - b.total || a.series.localeCompare(b.series, "fr"));
+  }
+  const ownedCards = rows.reduce((total, row) => total + row.owned, 0);
+  const copies = rows.reduce((total, row) => total + row.copies, 0);
+  const completed = rows.filter((row) => row.completed).length;
+  $("seriesStats").innerHTML = [
+    ["Albums affichés", rows.length],
+    ["Complétés", completed],
+    ["Cartes uniques", ownedCards],
+    ["Exemplaires", copies],
+  ]
+    .map(([key, value]) => `<div class="stat"><div class="v">${escapeHtml(String(value))}</div><div class="k">${key}</div></div>`)
+    .join("");
+  $("seriesGrid").innerHTML = rows.length
+    ? rows.map(seriesCard).join("")
+    : '<div class="empty">Aucun album ne correspond aux filtres.</div>';
+}
+
+async function loadSeries() {
+  if (seriesLoading) return;
+  seriesLoading = true;
+  const btn = $("seriesRefresh");
+  const oldLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Analyse…";
+  if (!seriesData) $("seriesGrid").innerHTML = '<div class="empty">Chargement des albums…</div>';
+  showSeriesMessage("", "Lecture de la collection et du catalogue…");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
+  try {
+    const response = await fetch("/api/series", { signal: controller.signal });
+    const data = await response.json();
+    if (data.error) {
+      const error = new Error(data.error);
+      error.code = data.code;
+      error.retryAfterMs = data.retryAfterMs;
+      throw error;
+    }
+    seriesData = data;
+    $("seriesAt").textContent = `collection analysée à ${new Date(data.at).toLocaleTimeString("fr-FR")}`;
+    renderSeries();
+    const summary = data.summary || {};
+    showSeriesMessage(
+      "ok",
+      `${summary.ownedSeries ?? 0} album(s) possédé(s) sur ${summary.series ?? 0} · ${summary.completed ?? 0} complété(s).`,
+    );
+    setTimeout(() => {
+      if ($("seriesMsg").classList.contains("ok")) $("seriesMsg").hidden = true;
+    }, 6000);
+  } catch (error) {
+    const code =
+      error.code ||
+      (error.name === "AbortError" ? "timeout" : state?.needsLogin ? "auth_required" : "series_error");
+    if (code === "auth_required") {
+      showSeriesMessage("error", "Connexion à Kyara requise pour afficher tes albums.", {
+        label: "Se connecter",
+        run: requestLogin,
+      });
+    } else if (code === "rate_limited") {
+      const seconds = Math.max(1, Math.ceil((Number(error.retryAfterMs) || 60000) / 1000));
+      showSeriesMessage("error", `API limitée — réessaie dans ${seconds} s.`);
+    } else if (code === "browser_closed") {
+      showSeriesMessage("error", "La fenêtre Chromium est fermée.", {
+        label: "Relancer Chromium",
+        run: restartBrowser,
+      });
+    } else if (code === "timeout") {
+      showSeriesMessage("error", "L'analyse des albums a dépassé 2 minutes.", {
+        label: "Réessayer",
+        run: () => loadSeries(),
+      });
+    } else {
+      showSeriesMessage("error", `Impossible de charger les albums : ${error.message}`, {
+        label: "Réessayer",
+        run: () => loadSeries(),
+      });
+    }
+    if (!seriesData) $("seriesGrid").innerHTML = '<div class="empty">Albums indisponibles pour le moment.</div>';
+  } finally {
+    clearTimeout(timer);
+    seriesLoading = false;
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+}
 
 function switchTab(name) {
   const isDup = name === "dup";
+  const isSeries = name === "series";
   const isTrade = name === "trade";
   const isSell = name === "sell";
-  $("viewOpen").style.display = isDup || isTrade || isSell ? "none" : "";
+  $("viewOpen").style.display = isDup || isSeries || isTrade || isSell ? "none" : "";
   $("viewDup").style.display = isDup ? "" : "none";
+  $("viewSeries").style.display = isSeries ? "" : "none";
   $("viewTrade").style.display = isTrade ? "" : "none";
   $("viewSell").style.display = isSell ? "" : "none";
-  $("tabOpen").classList.toggle("on", !isDup && !isTrade && !isSell);
+  $("tabOpen").classList.toggle("on", !isDup && !isSeries && !isTrade && !isSell);
   $("tabDup").classList.toggle("on", isDup);
+  $("tabSeries").classList.toggle("on", isSeries);
   $("tabTrade").classList.toggle("on", isTrade);
   $("tabSell").classList.toggle("on", isSell);
   try {
     if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
   } catch {}
   if (isDup && !dupData) loadDuplicates();
+  if (isSeries && !seriesData) loadSeries();
   if (isTrade) refreshTrades();
   if (isSell) refreshSales();
 }
 
 $("tabOpen").addEventListener("click", () => switchTab("open"));
 $("tabDup").addEventListener("click", () => switchTab("dup"));
+$("tabSeries").addEventListener("click", () => switchTab("series"));
 $("tabTrade").addEventListener("click", () => switchTab("trade"));
 $("tabSell").addEventListener("click", () => switchTab("sell"));
 $("dupRefresh").addEventListener("click", () => loadDuplicates(true));
@@ -1428,6 +1657,10 @@ $("systemAction").addEventListener("click", restartBrowser);
 $("dupQ").addEventListener("input", renderDup);
 $("dupRarity").addEventListener("change", renderDup);
 $("dupSellable").addEventListener("change", renderDup);
+$("seriesRefresh").addEventListener("click", () => loadSeries());
+$("seriesQ").addEventListener("input", renderSeries);
+$("seriesFilter").addEventListener("change", renderSeries);
+$("seriesSort").addEventListener("change", renderSeries);
 $("sellRefresh").addEventListener("click", () => refreshSales());
 
 async function loadDuplicates(refresh = false) {
@@ -1694,7 +1927,7 @@ async function tickNext() {
   // Vérification fréquente pour afficher la progression du téléchargement auto.
   setInterval(refreshUpdate, 10000);
   const initialTab = location.hash.replace("#", "");
-  if (["dup", "trade", "sell"].includes(initialTab)) switchTab(initialTab);
+  if (["dup", "series", "trade", "sell"].includes(initialTab)) switchTab(initialTab);
 })();
 </script>
 </body>

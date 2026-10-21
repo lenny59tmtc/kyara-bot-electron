@@ -7,6 +7,16 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.7.0
+
+- **Nouvel onglet « Séries »** : albums d'anime avec cartes possédées / total, progression, exemplaires et
+  répartition par rareté.
+- **Tri croissant par nombre de cartes possédées** (aussi tri par taille d'album, complétion ou nom).
+- **Filtres** : possédées (≥ 1), **≥ 5 cartes possédées**, albums de ≥ 5 cartes, **complétés**, **non complétés**,
+  toutes les séries — plus une recherche par nom.
+- Compteurs : albums affichés, complétés, cartes uniques possédées, exemplaires.
+- API : `GET /api/series` (lecture collection + catalogue, sans requête marché).
+
 ## Nouveautés de la version 1.6.1
 
 - **Limite de 10 annonces actives** : le moteur de vente ne tente **aucune nouvelle vente** lorsque les
@@ -354,9 +364,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.6.1.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.6.1.exe` — exécutable portable
-- `Kyara-Bot-1.6.1-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.7.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.7.0.exe` — exécutable portable
+- `Kyara-Bot-1.7.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -380,8 +390,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.6.1
-git push origin v1.6.1
+git tag v1.7.0
+git push origin v1.7.0
 ```
 
 ---

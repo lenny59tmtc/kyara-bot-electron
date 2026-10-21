@@ -4,6 +4,7 @@ import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
 import { getDuplicates, getMyMarket } from "./market.js";
+import { getSeriesOverview } from "./series.js";
 import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart, requestAutoUpdateInstall } from "./update.js";
 import { bus } from "./bus.js";
 
@@ -120,6 +121,36 @@ export function createServer(bot) {
           retryAfterMs: bot.isRateLimited?.() ? Math.max(0, bot.rateLimitedUntil - Date.now()) : null,
           rows: [],
           summary: { characters: 0, extras: 0, sellable: 0, potential: 0 },
+        });
+      }
+    }
+    if (url.pathname === "/api/series") {
+      try {
+        await bot.ensureBrowser();
+        if (bot.state.authenticated !== true) {
+          return json(res, {
+            error: "Connexion à Kyara requise : connecte ton compte Discord pour voir tes albums.",
+            code: "auth_required",
+            rows: [],
+            summary: { series: 0, ownedSeries: 0, completed: 0, ownedCards: 0, copies: 0 },
+          });
+        }
+        return json(res, await getSeriesOverview(bot));
+      } catch (e) {
+        const message = e?.message || String(e);
+        const code = /rate_limited/.test(message)
+          ? "rate_limited"
+          : /auth_required/.test(message)
+            ? "auth_required"
+            : /browser_closed/.test(message)
+              ? "browser_closed"
+              : "series_error";
+        return json(res, {
+          error: message,
+          code,
+          retryAfterMs: bot.isRateLimited?.() ? Math.max(0, bot.rateLimitedUntil - Date.now()) : null,
+          rows: [],
+          summary: { series: 0, ownedSeries: 0, completed: 0, ownedCards: 0, copies: 0 },
         });
       }
     }
