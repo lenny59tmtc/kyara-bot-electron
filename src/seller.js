@@ -1,6 +1,6 @@
 import { RARITY_ORDER, RECYCLE_MIN } from "./config.js";
 import { appendSale, loadSales } from "./store.js";
-import { getDuplicates } from "./market.js";
+import { getDuplicates, getMyMarket, invalidateMyMarket } from "./market.js";
 import { bus } from "./bus.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,8 +41,11 @@ export class SellerWorker {
       strategy: null,
       maxRarity: null,
       activeListings: 0,
+      maxListings: 10,
       pendingChakra: 0,
       noDuplicates: false,
+      countKnown: false,
+      limitLoggedAt: 0,
       stealth: true,
       sessionListed: 0,
     };
@@ -205,9 +208,28 @@ export class SellerWorker {
 
       try {
         await this.bot.ensureBrowser();
+        if (typeof this.bot.ensureOnSite === "function") await this.bot.ensureOnSite();
         this.state.phase = "scan";
         this.state.lastError = null;
         await this.checkSoldListings();
+
+        const maxListings = Number(this.bot.state.marketMaxListings) || this.state.maxListings || 10;
+        this.state.maxListings = maxListings;
+        // Ne jamais tenter une vente quand la limite d'annonces actives est atteinte.
+        if (this.state.activeListings >= maxListings) {
+          this.state.phase = "limit";
+          const wait = this.scanPauseMs();
+          this.state.nextAt = new Date(Date.now() + wait).toISOString();
+          if (Date.now() - this.limitLoggedAt > 5 * 60 * 1000) {
+            this.limitLoggedAt = Date.now();
+            this.bot.log(
+              "info",
+              `Ventes · limite de ${maxListings} annonces actives atteinte — aucune nouvelle vente`,
+            );
+          }
+          await this.idle(wait, true);
+          continue;
+        }
 
         const candidates = await this.collectCandidates(cfg);
         this.state.candidates = candidates.length;
@@ -237,6 +259,10 @@ export class SellerWorker {
         const seen = new Set();
         for (const row of candidates) {
           if (!this.running || this.bot.config.autoSell !== true || !this.bot.state.authenticated) break;
+          if (this.state.activeListings >= this.state.maxListings) {
+            this.state.phase = "limit";
+            break;
+          }
           if (this.state.stealth && this.state.sessionListed >= sessionLimit) {
             const pause = this.sessionPauseMs();
             this.state.phase = "cooldown";
@@ -284,6 +310,9 @@ export class SellerWorker {
             if (record.listingId) this.listedById.set(record.listingId, record);
             this.state.listedThisRun++;
             this.state.sessionListed++;
+            // Compteur local incrémenté immédiatement ; le prochain scan fait foi.
+            this.state.activeListings += 1;
+            invalidateMyMarket();
             this.state.last = record;
             this.state.lastAt = record.at;
             this.bot.log(
@@ -368,9 +397,13 @@ export class SellerWorker {
   async checkSoldListings() {
     if (!this.bot.page || this.bot.page.isClosed()) return;
     if (!this.bot.page.url().startsWith("https://kyara.games")) return;
-    const mine = await this.bot.api("/me/market");
-    const listings = Array.isArray(mine?.listings) ? mine.listings : [];
+    // Comptage frais des annonces actives (source fiable : /me/market).
+    const market = await getMyMarket(this.bot, { force: true });
+    const listings = market.listings;
     this.lastSoldCheck = Date.now();
+    this.state.activeListings = market.activeCount;
+    this.state.maxListings = market.maxListings;
+    this.state.countKnown = true;
 
     // Au premier scan, on mémorise les ventes déjà soldées sans les compter :
     // le bilan horaire démarre à partir des ventes détectées après activation.
@@ -405,12 +438,14 @@ export class SellerWorker {
       this.bot.log("info", `Ventes · ${record.name} vendu pour ${price} ⚡`);
     }
 
-    const active = listings.filter((listing) => listing?.isMine && listing.status === "active");
-    this.state.activeListings = active.length;
+    const active = market.active;
     this.state.pendingChakra = active.reduce(
       (total, listing) => total + (Number(listing.buyoutPrice ?? listing.price) || 0),
       0,
     );
-    if (detected) bus.emit("state", this.bot.snapshot());
+    if (detected) {
+      invalidateMyMarket();
+      bus.emit("state", this.bot.snapshot());
+    }
   }
 }

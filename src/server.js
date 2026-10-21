@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC_DIR, loadConfig, saveConfig, RARITY_ORDER } from "./config.js";
 import { loadHistory, computeStats, loadBatches, loadTrades, tradeBuckets, tradeStats, loadSales, saleStats, appendSale } from "./store.js";
-import { getDuplicates } from "./market.js";
+import { getDuplicates, getMyMarket } from "./market.js";
 import { getUpdateState, getAutoUpdateState, requestAutoUpdateRestart, requestAutoUpdateInstall } from "./update.js";
 import { bus } from "./bus.js";
 
@@ -73,10 +73,23 @@ export function createServer(bot) {
     }
     if (url.pathname === "/api/sales") {
       const sales = loadSales(3000);
+      let market = null;
+      try {
+        if (bot.state?.authenticated && bot.page && !bot.page.isClosed()) {
+          const snapshot = await getMyMarket(bot);
+          market = {
+            activeListings: snapshot.activeCount,
+            maxListings: snapshot.maxListings,
+            totalListings: snapshot.total,
+            soldListings: snapshot.soldCount,
+          };
+        }
+      } catch {}
       return json(res, {
         stats: saleStats(sales),
         history: sales.slice(0, 300),
         seller: bot.seller?.snapshot() ?? null,
+        market,
         auto: bot.config?.autoSell === true,
       });
     }

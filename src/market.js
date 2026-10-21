@@ -7,6 +7,48 @@ const CATALOG_TTL = 24 * 3600 * 1000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let catalogCache = null;
+let myMarketCache = { at: 0, data: null };
+const MY_MARKET_TTL = 15000;
+
+export function invalidateMyMarket() {
+  myMarketCache = { at: 0, data: null };
+}
+
+/** Mes annonces du marché, comptage fiable des annonces actives. */
+export async function getMyMarket(bot, { force = false } = {}) {
+  if (!force && myMarketCache.data && Date.now() - myMarketCache.at < MY_MARKET_TTL) {
+    return myMarketCache.data;
+  }
+  if (!bot.page || bot.page.isClosed()) throw new Error("browser_closed");
+  const response = await bot.api("/me/market");
+  if (response?.error) {
+    if (/rate_limited/.test(response.error)) throw new Error("rate_limited");
+    throw new Error(`mes annonces indisponibles: ${response.error}`);
+  }
+  const listings = Array.isArray(response?.listings) ? response.listings : [];
+  // Certaines réponses n'exposent pas isMine : /me/market ne renvoie que mes annonces.
+  const hasMineFlag = listings.some((listing) => typeof listing?.isMine === "boolean");
+  const mySellerId = listings.find((listing) => listing?.isMine === true)?.seller?.id;
+  const mine = listings.filter((listing) => {
+    if (!hasMineFlag) return true;
+    if (listing?.isMine === true) return true;
+    return Boolean(mySellerId && listing?.seller?.id === mySellerId);
+  });
+  const active = mine.filter((listing) => String(listing?.status || "").toLowerCase() === "active");
+  const sold = mine.filter((listing) => String(listing?.status || "").toLowerCase() === "sold");
+  const data = {
+    at: new Date().toISOString(),
+    listings: mine,
+    active,
+    activeCount: active.length,
+    sold,
+    soldCount: sold.length,
+    total: mine.length,
+    maxListings: Number(bot.state?.marketMaxListings) || 10,
+  };
+  myMarketCache = { at: Date.now(), data };
+  return data;
+}
 
 export async function loadCatalog(bot) {
   if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL) return catalogCache.map;
@@ -48,11 +90,11 @@ export async function getDuplicates(bot) {
   const catalog = await loadCatalog(bot);
   await sleep(160 + Math.random() * 420);
 
-  let mine = { listings: [] };
+  let marketState = null;
   try {
-    mine = await bot.api("/me/market");
+    marketState = await getMyMarket(bot);
   } catch {}
-  const listed = new Set((mine.listings || []).filter((l) => l.status === "active").map((l) => l.character?.id));
+  const listed = new Set((marketState?.active || []).map((listing) => listing.character?.id));
 
   let totalValue = 0;
   let sellableCount = 0;
@@ -113,6 +155,10 @@ export async function getDuplicates(bot) {
   return {
     at: new Date().toISOString(),
     rows,
+    market: {
+      activeListings: marketState?.activeCount ?? null,
+      maxListings: marketState?.maxListings ?? (Number(bot.state?.marketMaxListings) || 10),
+    },
     summary: {
       characters: rows.length,
       extras: rows.reduce((total, row) => total + (row.extras || 0), 0),

@@ -7,6 +7,17 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.6.1
+
+- **Limite de 10 annonces actives** : le moteur de vente ne tente **aucune nouvelle vente** lorsque les
+  annonces actives ont atteint la limite du compte (10 par défaut, valeur lue dans `marketLimits`). Le compteur
+  local est incrémenté après chaque mise en vente et le prochain scan vérifie la valeur réelle.
+- **Comptage des annonces actives corrigé** : les annonces sont lues directement dans `/me/market`
+  (`isMine` + `status === "active"`), avec cache court et invalidation après vente. Le nombre exact est exposé dans
+  `/api/sales` (`market.activeListings`, `market.maxListings`) et dans l'analyse (`/api/duplicates`).
+- **Dashboard** : carte « Annonces actives » au format `X / 10`, compteur aussi affiché dans l'onglet Doublons ;
+  statut « limite d'annonces actives atteinte » dans le suivi de la vente automatique.
+
 ## Nouveautés de la version 1.6.0
 
 - **Mise à jour avant démarrage** : au lancement, l'application vérifie les mises à jour **avant** de démarrer le
@@ -343,9 +354,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.6.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.6.0.exe` — exécutable portable
-- `Kyara-Bot-1.6.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.6.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.6.1.exe` — exécutable portable
+- `Kyara-Bot-1.6.1-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -369,8 +380,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.6.0
-git push origin v1.6.0
+git tag v1.6.1
+git push origin v1.6.1
 ```
 
 ---

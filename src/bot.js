@@ -82,6 +82,7 @@ export class KyaraBot {
       browserOpen: false,
       browserClosed: false,
       rateLimitedUntil: null,
+      marketMaxListings: 10,
       log: [],
     };
   }
@@ -783,6 +784,8 @@ export class KyaraBot {
     this.state.discordUsername = me.discord?.username ?? null;
     this.state.guest = !me.discord;
     this.state.authenticated = Boolean(me.discord);
+    const maxListings = Number(me.marketLimits?.listings);
+    if (Number.isFinite(maxListings) && maxListings > 0) this.state.marketMaxListings = Math.floor(maxListings);
   }
 
   async tick(me) {

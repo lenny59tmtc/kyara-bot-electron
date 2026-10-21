@@ -180,8 +180,8 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | GET | `/api/history?limit=100` | Ouvertures (du plus récent au plus ancien) + stats |
 | GET | `/api/batches?limit=30` | Comptes rendus des multi-ouvertures |
 | GET | `/api/trades?limit=200` | Échanges : `{trades, buckets, stats, auto, state}` (`buckets` = tranches de 10 min) |
-| GET | `/api/sales` | Ventes : `{stats, history, seller, auto}` — stats chakra/gagné (24 h, 60 min, moyenne/h, tranches horaires) |
-| GET | `/api/duplicates` | Analyse du marché : `{rows, summary}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
+| GET | `/api/sales` | Ventes : `{stats, history, seller, market, auto}` — `market` = `{activeListings, maxListings, totalListings, soldListings}` |
+| GET | `/api/duplicates` | Analyse du marché : `{rows, summary, market}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
 | GET | `/api/config` | Configuration actuelle |
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
@@ -221,6 +221,9 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   `data/sales.jsonl` (`kind: "sold"`, `finalPrice`) → chakra réellement gagné pour le bilan ; `kind: "listed"`
   trace les mises en vente. Un premier scan mémorise les ventes déjà soldées sans les compter (bilan démarré
   à l'activation).
+- **Limite d'annonces actives** : comptage fiable via `getMyMarket` (`/me/market`, `isMine` + `status: active`),
+  cache 15 s invalidé après vente. Si `activeListings >= marketMaxListings` (10 par défaut, lu dans
+  `me.marketLimits.listings`), le moteur passe en phase `limit` et **ne tente aucune vente** jusqu'à libération.
 - Les ventes manuelles (`POST /api/sell`) alimentent aussi le bilan.
 
 ### Robustesse navigateur, marché et limites API

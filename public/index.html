@@ -995,6 +995,8 @@ function renderSales(data) {
   if (!data) return;
   const stats = data.stats || {};
   const seller = data.seller || state?.sell || {};
+  const activeListings = data.market?.activeListings ?? seller.activeListings ?? 0;
+  const maxListings = data.market?.maxListings ?? seller.maxListings ?? 10;
   const cards = [
     ["Chakra gagné (24 h)", `${stats.last24hChakra ?? 0} ⚡`],
     ["Chakra / h (60 min)", `${stats.lastHourChakra ?? 0} ⚡`],
@@ -1002,7 +1004,7 @@ function renderSales(data) {
     ["Aujourd'hui", `${stats.todayChakra ?? 0} ⚡`],
     ["Ventes (24 h)", stats.last24hSales ?? 0],
     ["Total gagné", `${stats.totalChakra ?? 0} ⚡`],
-    ["Annonces actives", seller.activeListings ?? 0],
+    ["Annonces actives", `${activeListings} / ${maxListings}`],
     ["En attente", `${seller.pendingChakra ?? 0} ⚡`],
   ];
   $("sellStats").innerHTML = cards
@@ -1070,6 +1072,7 @@ function renderSellStatus() {
     idle: "en veille — aucun doublon éligible",
     rate_limited: "en pause (limite API)",
     cooldown: "pause discrète (anti-détection)",
+    limit: "limite d'annonces actives atteinte",
     error: `erreur : ${seller?.lastError || "inconnue"}`,
   };
   if ($("sellState")) {
@@ -1511,6 +1514,7 @@ function renderDup() {
     ["Doublons", s.characters ?? 0],
     ["Cartes en trop", s.extras ?? 0],
     ["Vendables", s.sellable ?? 0],
+    ["Annonces actives", `${dupData.market?.activeListings ?? "—"}${dupData.market?.maxListings ? ` / ${dupData.market.maxListings}` : ""}`],
     ["Potentiel ⚡", s.potential ?? 0],
   ]
     .map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`)
