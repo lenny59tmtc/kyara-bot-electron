@@ -217,8 +217,10 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
 - Cycle : analyse `/api/me/collection` via `getDuplicates` (sans requête marché par personnage), ne garde que les
   doublons **vendables**, d'une rareté ≤ `sellMaxRarity`, puis crée une annonce par doublon avec le prix calculé
   par la stratégie : `fast` = 75 % du prix conseillé, `normal` = prix conseillé (médianes de la collection),
-  `patient` = médiane +8 %. En mode discret : plancher de 25 s, pauses humaines, ordre mélangé, activité
-  souris/scroll, jitter de prix ±3 %, sessions de 2–6 annonces suivies d'une pause de 2–7 minutes.
+  `patient` = médiane +8 %. **Les candidats sont triés par chakra attendu décroissant** (prix calculé selon la
+  stratégie) : les cartes les plus rentables sont vendues en premier ; à valeur égale, l'ordre est mélangé.
+  En mode discret : plancher de 25 s, pauses humaines, activité souris/scroll, jitter de prix ±3 %, sessions de
+  2–6 annonces suivies d'une pause de 2–7 minutes.
 - `GET /api/me/market` est analysé périodiquement : les annonces `status: "sold"` sont écrites dans
   `data/sales.jsonl` (`kind: "sold"`, `finalPrice`) → chakra réellement gagné pour le bilan ; `kind: "listed"`
   trace les mises en vente. Un premier scan mémorise les ventes déjà soldées sans les compter (bilan démarré

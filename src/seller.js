@@ -254,7 +254,6 @@ export class SellerWorker {
         if (this.state.stealth) {
           await this.humanActivity();
           await this.idle(this.randInt(1200, 4000), true);
-          this.shuffle(candidates);
         }
         const seen = new Set();
         for (const row of candidates) {
@@ -353,26 +352,49 @@ export class SellerWorker {
     this.state.candidates = 0;
   }
 
+  /**
+   * Ordonne les doublons par chakra attendu décroissant : les cartes qui
+   * rapportent le plus sont vendues en premier. À valeur égale, l'ordre est
+   * mélangé pour ne pas être parfaitement déterministe.
+   */
+  orderCandidates(rows, cfg) {
+    const strategy = cfg?.sellPricing || "normal";
+    const priced = rows.map((row) => ({ row, price: this.priceFor(row, strategy) }));
+    priced.sort((a, b) => {
+      if (b.price !== a.price) return b.price - a.price;
+      const advice = (Number(b.row.advice) || 0) - (Number(a.row.advice) || 0);
+      if (advice !== 0) return advice;
+      const rank = RARITY_ORDER.indexOf(a.row.rarity) - RARITY_ORDER.indexOf(b.row.rarity);
+      if (rank !== 0) return rank;
+      return String(a.row.name || "").localeCompare(String(b.row.name || ""), "fr");
+    });
+    for (let start = 0; start < priced.length; ) {
+      let end = start + 1;
+      while (end < priced.length && priced[end].price === priced[start].price) end++;
+      if (end - start > 1) {
+        const group = priced.slice(start, end);
+        this.shuffle(group);
+        for (let index = 0; index < group.length; index++) priced[start + index] = group[index];
+      }
+      start = end;
+    }
+    return priced.map((entry) => entry.row);
+  }
+
   async collectCandidates(cfg) {
     if (typeof this.bot.ensureOnSite === "function") await this.bot.ensureOnSite();
     const data = await getDuplicates(this.bot);
     const rows = data?.rows || [];
     const maxRank = RARITY_ORDER.indexOf(cfg.sellMaxRarity || "R");
     const limit = maxRank === -1 ? RARITY_ORDER.indexOf("R") : maxRank;
-    return rows
-      .filter((row) => {
-        const rank = RARITY_ORDER.indexOf(row.rarity);
-        if (rank === -1 || rank > limit) return false;
-        if (row.state !== "vendable" || row.advice == null) return false;
-        if (!row.extras || row.extras <= 0) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const ra = RARITY_ORDER.indexOf(a.rarity);
-        const rb = RARITY_ORDER.indexOf(b.rarity);
-        if (ra !== rb) return ra - rb;
-        return (b.advice || 0) - (a.advice || 0);
-      });
+    const eligible = rows.filter((row) => {
+      const rank = RARITY_ORDER.indexOf(row.rarity);
+      if (rank === -1 || rank > limit) return false;
+      if (row.state !== "vendable" || row.advice == null) return false;
+      if (!row.extras || row.extras <= 0) return false;
+      return true;
+    });
+    return this.orderCandidates(eligible, cfg);
   }
 
   priceFor(row, strategy) {

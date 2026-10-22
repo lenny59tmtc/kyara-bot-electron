@@ -7,6 +7,14 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.8.0
+
+- **Vente automatique par valeur décroissante** : les doublons sont vendus **de la carte qui rapporte le plus de
+  chakra à la moins rentable**, selon le prix calculé par la stratégie choisie (`Vite`, `Normal`, `Patient`).
+- L'ordre est recalculé à chaque scan : les cartes les plus rentables passent toujours en premier.
+- À **valeur égale**, l'ordre reste mélangé pour ne pas être parfaitement déterministe ; le mode discret
+  (pauses, sessions, activité souris) reste actif.
+
 ## Nouveautés de la version 1.7.2
 
 - **Correction de la version affichée par le bouton de mise à jour** : le bouton prend désormais la version la plus
@@ -381,9 +389,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.7.2.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.7.2.exe` — exécutable portable
-- `Kyara-Bot-1.7.2-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.8.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.8.0.exe` — exécutable portable
+- `Kyara-Bot-1.8.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -407,8 +415,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.7.2
-git push origin v1.7.2
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
 ---
