@@ -404,6 +404,13 @@
           <span>Ouverture automatique des boosters</span>
           <span class="switch"><input type="checkbox" id="autoOpen" /><span class="slider"></span></span>
         </label>
+        <label class="switch-row">
+          <span>Chromium en arrière-plan (sans vol de focus)</span>
+          <span class="switch"><input type="checkbox" id="browserBackground" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          La fenêtre Chromium démarre minimisée et ne passe au premier plan que pour la connexion Discord.
+        </p>
         <label>Vérifier toutes les X secondes
           <input type="number" id="poll" min="15" max="600" step="5" />
         </label>
@@ -1302,6 +1309,7 @@ function applyConfig(c) {
   $("poll").value = c.pollSeconds;
   $("daily").checked = !!c.openDaily;
   $("autoOpen").checked = c.autoOpen !== false;
+  $("browserBackground").checked = c.browserBackground !== false;
   $("sound").checked = !!c.soundOnRare;
   $("batchMin").value = c.batchMin ?? 6;
   $("batchMax").value = c.batchMax ?? 8;
@@ -1356,6 +1364,7 @@ $("saveOpen").addEventListener("click", () => {
       pollSeconds: Number($("poll").value) || 45,
       openDaily: $("daily").checked,
       autoOpen: $("autoOpen").checked,
+      browserBackground: $("browserBackground").checked,
       soundOnRare: $("sound").checked,
       batchMin: Number($("batchMin").value) || 6,
       batchMax: Number($("batchMax").value) || 8,

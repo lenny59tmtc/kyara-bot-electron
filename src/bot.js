@@ -255,13 +255,17 @@ export class KyaraBot {
       viewport: { width: 1280 + Math.floor(Math.random() * 160), height: 800 + Math.floor(Math.random() * 120) },
       args: [
         "--disable-blink-features=AutomationControlled",
-        "--disable-features=IsolateOrigins,site-per-process",
+        "--disable-features=IsolateOrigins,site-per-process,CalculateNativeWinOcclusion",
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-session-crashed-bubble",
         "--hide-crash-restore-bubble",
         "--disable-crash-reporter",
         "--disable-breakpad",
+        // Continue de fonctionner quand la fenêtre est minimisée / en arrière-plan.
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
       ],
       locale: "fr-FR",
       timezoneId: "Europe/Paris",
@@ -370,6 +374,41 @@ export class KyaraBot {
     this.attach(this.page);
     await this.page.goto(BASE, { waitUntil: "domcontentloaded" });
     await this.page.waitForTimeout(1500);
+    // Pas d'autofocus : la fenêtre Chromium reste en arrière-plan.
+    await this.applyBrowserWindowMode();
+  }
+
+  /**
+   * Minimise la fenêtre Chromium pour ne pas voler le focus. `focus: true`
+   * la restaure et la met au premier plan (connexion Discord demandée).
+   */
+  async applyBrowserWindowMode({ focus = false } = {}) {
+    const context = this.context;
+    if (!context || context.isClosed()) return false;
+    const page =
+      this.page && !this.page.isClosed()
+        ? this.page
+        : context.pages().find((candidate) => !candidate.isClosed());
+    if (!page) return false;
+    try {
+      const session = await context.newCDPSession(page);
+      const { windowId } = await session.send("Browser.getWindowForTarget");
+      this.windowSession = session;
+      this.windowId = windowId;
+      const background = this.config?.browserBackground !== false;
+      const windowState = background && !focus ? "minimized" : "normal";
+      await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState } });
+      if (windowState === "normal") await page.bringToFront().catch(() => {});
+      return true;
+    } catch (error) {
+      const message = String(error?.message || error).split("\n")[0];
+      this.log("warn", `Mode arrière-plan Chromium indisponible: ${message}`);
+      return false;
+    }
+  }
+
+  async focusBrowserWindow() {
+    return this.applyBrowserWindowMode({ focus: true });
   }
 
   attach(page) {
@@ -732,9 +771,8 @@ export class KyaraBot {
     await this.ensureBrowser();
     const page = this.page;
     if (!page || page.isClosed()) return false;
-    try {
-      await page.bringToFront();
-    } catch {}
+    // Connexion demandée par l'utilisateur : on restaure la fenêtre au premier plan.
+    await this.focusBrowserWindow();
     try {
       if (!page.url().startsWith(BASE)) {
         await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -904,7 +942,10 @@ export class KyaraBot {
 
   async doOpenPack(packId, want = 1) {
     await this.ensureBrowser();
-    if (this.page && !this.page.isClosed()) await this.page.bringToFront().catch(() => {});
+    // Pas d'autofocus pendant les ouvertures automatiques.
+    if (this.config?.browserBackground === false && this.page && !this.page.isClosed()) {
+      await this.focusBrowserWindow();
+    }
     await sleep(300 + Math.random() * 1200);
     const url = `${BASE}/ouvrir/${packId}`;
     await this.page.goto(url, { waitUntil: "domcontentloaded" });

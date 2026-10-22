@@ -7,6 +7,17 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 1.9.0
+
+- **Plus d'autofocus Chromium** : la fenêtre pilotée par Playwright démarre **minimisée** et ne passe plus au
+  premier plan pendant les ouvertures ou les ventes automatiques.
+- Nouvelle option **« Chromium en arrière-plan (sans vol de focus) »** dans **Ouvertures → Configuration des
+  ouvertures**, activée par défaut ; la décocher remet la fenêtre au premier plan comme avant.
+- La fenêtre est **restaurée automatiquement** quand une connexion Discord est demandée (« Se connecter ») ou
+  après un redémarrage manuel de Chromium.
+- Le navigateur continue de fonctionner en arrière-plan (throttling désactivé) : ouvertures, échanges et ventes
+  ne sont pas ralentis.
+
 ## Nouveautés de la version 1.8.0
 
 - **Vente automatique par valeur décroissante** : les doublons sont vendus **de la carte qui rapporte le plus de
@@ -389,9 +400,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.8.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.8.0.exe` — exécutable portable
-- `Kyara-Bot-1.8.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-1.9.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-1.9.0.exe` — exécutable portable
+- `Kyara-Bot-1.9.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -415,8 +426,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.8.0
-git push origin v1.8.0
+git tag v1.9.0
+git push origin v1.9.0
 ```
 
 ---

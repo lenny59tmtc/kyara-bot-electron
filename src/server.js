@@ -213,6 +213,7 @@ export function createServer(bot) {
       if ([12, 24, 48].includes(Number(body.saleDurationHours))) patch.saleDurationHours = Number(body.saleDurationHours);
       if (typeof body.tradesAuto === "boolean") patch.tradesAuto = body.tradesAuto;
       if (typeof body.autoOpen === "boolean") patch.autoOpen = body.autoOpen;
+      if (typeof body.browserBackground === "boolean") patch.browserBackground = body.browserBackground;
       if (typeof body.autoSell === "boolean") patch.autoSell = body.autoSell;
       if (RARITY_ORDER.includes(body.sellMaxRarity)) patch.sellMaxRarity = body.sellMaxRarity;
       if (["fast", "normal", "patient"].includes(body.sellPricing)) patch.sellPricing = body.sellPricing;

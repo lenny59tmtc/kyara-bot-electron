@@ -184,7 +184,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | GET | `/api/duplicates` | Analyse du marché : `{rows, summary, market}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
 | GET | `/api/series` | Albums d'anime : `{rows, summary}` — par série : `owned`, `total`, `copies`, `missing`, `completion`, `completed`, `rarities` |
 | GET | `/api/config` | Configuration actuelle |
-| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
+| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoOpen, browserBackground, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
 | GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) ; un état écrit par une version précédente est ignoré |
@@ -233,6 +233,9 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
 ### Robustesse navigateur, marché et limites API
 
 - Le serveur HTTP répond avant le démarrage du bot ; Chromium est lancé ensuite (démarrage Electron fiable).
+- **Sans autofocus** : la fenêtre Chromium démarre minimisée (`browserBackground: true` par défaut) via CDP
+  (`Browser.setWindowBounds`) et n'est restaurée que sur demande de connexion Discord ou si l'option est décochée.
+  Le throttling d'arrière-plan est désactivé pour que le bot continue de fonctionner normalement.
 - Verrous/profils Chromium résiduels nettoyés au démarrage ; si Chromium se ferme ou plante, le bot le relance
   automatiquement (sauf arrêt explicite) et expose `browserOpen` / `browserClosed` dans `/api/state`.
 - Une erreur `rate_limited` est détectée dans `bot.api`/`apiPost` : backoff global (`rateLimitedUntil`), pause du bot,
