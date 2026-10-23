@@ -7,6 +7,11 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 2.0.1
+
+- **Correction de mise en page** de l'onglet **Achat auto** : la section des ordres et les réglages retrouvent la
+  disposition en deux colonnes (comme Ventes & bilan) au lieu d'un panneau de réglages pleine largeur.
+
 ## Nouveautés de la version 2.0.0
 
 - **Séries enrichies** : filtres plus permissifs (dont albums de ≥ 5 cartes + tri par complétion décroissante) et
@@ -415,9 +420,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-2.0.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-2.0.0.exe` — exécutable portable
-- `Kyara-Bot-2.0.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-2.0.1.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-2.0.1.exe` — exécutable portable
+- `Kyara-Bot-2.0.1-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -441,8 +446,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v2.0.0
-git push origin v2.0.0
+git tag v2.0.1
+git push origin v2.0.1
 ```
 
 ---
