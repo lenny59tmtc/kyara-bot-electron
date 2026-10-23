@@ -180,11 +180,16 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | GET | `/api/history?limit=100` | Ouvertures (du plus récent au plus ancien) + stats |
 | GET | `/api/batches?limit=30` | Comptes rendus des multi-ouvertures |
 | GET | `/api/trades?limit=200` | Échanges : `{trades, buckets, stats, auto, state}` (`buckets` = tranches de 10 min) |
-| GET | `/api/sales` | Ventes : `{stats, history, seller, market, auto}` — `market` = `{activeListings, maxListings, totalListings, soldListings}` |
+| GET | `/api/sales` | Ventes : `{stats, history, seller, market, strategy, auto}` — `strategy` = analyse des durées par stratégie |
 | GET | `/api/duplicates` | Analyse du marché : `{rows, summary, market}` ; erreurs `{code: auth_required\|rate_limited\|browser_closed\|market_error, retryAfterMs}` |
 | GET | `/api/series` | Albums d'anime : `{rows, summary}` — par série : `owned`, `total`, `copies`, `missing`, `completion`, `completed`, `rarities` |
+| POST | `/api/series/buy` | Achat direct des annonces fixes des cartes manquantes d'une série : `{series, maxPrice, limit}` |
+| GET | `/api/collection` | Collection complète : `{rows, summary}` avec `recycleValue` par carte |
+| POST | `/api/recycle` | Recycle une sélection : `{items: [{characterId, qty}]}` (une carte à la fois) |
+| GET | `/api/buy` | Achats auto : `{state, auto, orders}` (ordres d'achat actifs) |
+| GET | `/api/buy/preview` | Aperçu des candidats d'achat (prix, série, complétion) sans passer d'ordre |
 | GET | `/api/config` | Configuration actuelle |
-| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoOpen, browserBackground, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth }` |
+| POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoOpen, browserBackground, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth, sellMaxAgeHours, autoBuy, buyMaxPrice, buyPriority, buyIntervalMin, buyIntervalMax, buyMaxPerRun }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
 | GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) ; un état écrit par une version précédente est ignoré |
@@ -211,9 +216,14 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
 ### Moteur de vente automatique (`src/seller.js`)
 
 - **Désactivé par défaut** (`config.autoSell === false`, UI et fichier de configuration).
-- Paramètres : `sellMaxRarity` (C/U/R/E/L/M), `sellPricing` (`fast` | `normal` | `patient`),
+- Paramètres : `sellMaxRarity` (C/U/R/E/L/M), `sellPricing` (`fast` | `normal` | `patient` | `auto`),
   `sellDelayMin` / `sellDelayMax` (secondes, 5–600), `sellStealth` (mode discret, défaut `true`),
+  `sellMaxAgeHours` (retrait automatique des annonces invendues, défaut 2 h),
   `saleType` / `saleDurationHours` pour l'annonce.
+- **Stratégie automatique** : l'analyse de tout l'historique (`data/sales.jsonl`) calcule la durée médiane de vente
+  par stratégie et expose la plus rapide dans `/api/sales.strategy` ; `sellPricing: "auto"` l'utilise.
+- **Annonces invendues** : au-delà de `sellMaxAgeHours`, les annonces actives sont annulées (`/market/listings/:id/cancel`)
+  pour libérer les doublons et la place dans la limite des 10.
 - Cycle : analyse `/api/me/collection` via `getDuplicates` (sans requête marché par personnage), ne garde que les
   doublons **vendables**, d'une rareté ≤ `sellMaxRarity`, puis crée une annonce par doublon avec le prix calculé
   par la stratégie : `fast` = 75 % du prix conseillé, `normal` = prix conseillé (médianes de la collection),
@@ -229,6 +239,24 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   cache 15 s invalidé après vente. Si `activeListings >= marketMaxListings` (10 par défaut, lu dans
   `me.marketLimits.listings`), le moteur passe en phase `limit` et **ne tente aucune vente** jusqu'à libération.
 - Les ventes manuelles (`POST /api/sell`) alimentent aussi le bilan.
+
+### Achat automatique (`src/buyer.js`)
+
+- **Désactivé par défaut** (`autoBuy: false`).
+- Paramètres : `buyMaxPrice`, `buyPriority` (`cheapest` | `completion` | `balanced`),
+  `buyIntervalMin` / `buyIntervalMax` (secondes), `buyMaxPerRun` (1–5).
+- Le moteur charge la collection + catalogue, scanne les annonces fixes les moins chères, ignore les cartes
+  possédées et les ordres d'achat déjà ouverts, puis place des ordres via `POST /market/buy-orders`
+  (`{characterId, price}`). Priorité : complétion des séries (par défaut), prix le plus bas, ou équilibré.
+- `GET /api/buy/preview` permet de visualiser les candidats sans passer d'ordre.
+
+### Recyclage et activité unique
+
+- `POST /recycle` (interne) utilise `POST /me/collection/:characterId/recycle` pour chaque carte sélectionnée,
+  séquentiellement et avec des délais ; les valeurs par rareté sont exposées par `/api/collection`.
+- **Verrou d'activité global** : `KyaraBot.runExclusive(name, fn)` sérialise ouverture, échanges, vente, achat et
+  recyclage. Les automatismes qui trouvent le verrou occupé attendent le prochain cycle ; l'activité en cours est
+  exposée dans `/api/state.activity` et la barre de statut.
 
 ### Robustesse navigateur, marché et limites API
 

@@ -57,6 +57,15 @@ const DEFAULTS = {
   sellDelayMin: 30,
   sellDelayMax: 90,
   sellStealth: true,
+  // Retire automatiquement les annonces non vendues après X heures.
+  sellMaxAgeHours: 2,
+  // Achat automatique : ordres d'achat sur les cartes non possédées.
+  autoBuy: false,
+  buyMaxPrice: 20,
+  buyPriority: "completion",
+  buyIntervalMin: 90,
+  buyIntervalMax: 240,
+  buyMaxPerRun: 2,
   // Chromium démarre minimisé pour ne pas voler le focus.
   browserBackground: true,
 };

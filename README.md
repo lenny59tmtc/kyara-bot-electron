@@ -7,6 +7,21 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 2.0.0
+
+- **Séries enrichies** : filtres plus permissifs (dont albums de ≥ 5 cartes + tri par complétion décroissante) et
+  bouton **« Acheter les manquantes »** sur chaque album (achat des annonces fixes les moins chères, avec budget et
+  nombre maximum de cartes).
+- **Vente intelligente** : analyse de **tout l'historique des ventes** pour recommander la stratégie la plus rapide
+  (option `Automatique`), et **annulation automatique des annonces invendues après 2 h** pour libérer les doublons.
+- **Onglet Recyclage** : sélection carte par carte et quantité à recycler (au lieu des raretés entières), avec
+  valeur en chakra et filtres doublons/uniques.
+- **Onglet Achat auto** : place des **ordres d'achat** sur les cartes non possédées, avec priorité au moins cher, à la
+  complétion des séries ou équilibrée, prix maximum, intervalle et nombre par passe.
+- **Une seule activité à la fois** : ouverture, échanges, vente, achat et recyclage passent par un verrou global ;
+  si plusieurs automatismes sont activés, ils s'exécutent l'un après l'autre (comportement non bot-like).
+- Nouveaux endpoints : `/api/collection`, `/api/recycle`, `/api/series/buy`, `/api/buy`, `/api/buy/preview`.
+
 ## Nouveautés de la version 1.9.0
 
 - **Plus d'autofocus Chromium** : la fenêtre pilotée par Playwright démarre **minimisée** et ne passe plus au
@@ -400,9 +415,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-1.9.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-1.9.0.exe` — exécutable portable
-- `Kyara-Bot-1.9.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-2.0.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-2.0.0.exe` — exécutable portable
+- `Kyara-Bot-2.0.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -426,8 +441,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v1.9.0
-git push origin v1.9.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 ---

@@ -1,6 +1,7 @@
 import { RARITY_ORDER, RECYCLE_MIN } from "./config.js";
 import { appendSale, loadSales } from "./store.js";
 import { getDuplicates, getMyMarket, invalidateMyMarket } from "./market.js";
+import { analyzeSellStrategies } from "./strategy.js";
 import { bus } from "./bus.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,6 +28,7 @@ export class SellerWorker {
     this.primed = false;
     this.lastNoDupLog = 0;
     this.lastSoldCheck = 0;
+    this.analysisCache = { at: 0, value: null };
     this.state = {
       running: false,
       enabled: false,
@@ -48,6 +50,7 @@ export class SellerWorker {
       limitLoggedAt: 0,
       stealth: true,
       sessionListed: 0,
+      canceledThisRun: 0,
     };
   }
 
@@ -199,6 +202,14 @@ export class SellerWorker {
         await this.idle(5000);
         continue;
       }
+
+      // Une seule activité à la fois : on laisse la main à l'ouverture, aux
+      // achats ou aux échanges avant de scanner le marché.
+      if (this.bot.activity) {
+        this.state.phase = `attente (${this.bot.activity})`;
+        await this.idle(3000);
+        continue;
+      }
       if (!this.bot.state.authenticated) {
         this.state.phase = "waiting_login";
         this.state.nextAt = null;
@@ -282,14 +293,23 @@ export class SellerWorker {
           }
 
           const cfgNow = this.bot.config;
-          let price = this.priceFor(row, cfgNow.sellPricing);
+          const strategy = this.resolveStrategy(cfgNow);
+          this.state.strategy = strategy;
+          let price = this.priceFor(row, strategy);
           if (this.state.stealth) price = this.jitterPrice(price, row.rarity);
-          const result = await this.bot.sell(row.characterId, price, {
-            rarity: row.rarity,
-            name: row.name,
-            type: cfgNow.saleType,
-            durationHours: cfgNow.saleDurationHours,
-          });
+          const sale = await this.bot.runExclusive("vente", () =>
+            this.bot.sell(row.characterId, price, {
+              rarity: row.rarity,
+              name: row.name,
+              type: cfgNow.saleType,
+              durationHours: cfgNow.saleDurationHours,
+            }),
+          );
+          if (sale.skipped) {
+            this.state.phase = `attente (${sale.activity})`;
+            break;
+          }
+          const result = sale.value;
 
           if (result?.ok) {
             const record = appendSale({
@@ -394,7 +414,9 @@ export class SellerWorker {
       if (!row.extras || row.extras <= 0) return false;
       return true;
     });
-    return this.orderCandidates(eligible, cfg);
+    const strategy = this.resolveStrategy(cfg);
+    this.state.strategy = strategy;
+    return this.orderCandidates(eligible, { ...cfg, sellPricing: strategy });
   }
 
   priceFor(row, strategy) {
@@ -416,6 +438,53 @@ export class SellerWorker {
     return Math.max(floor, Math.round(price));
   }
 
+  /**
+   * Stratégie réellement utilisée : celle de la config, ou la plus rapide
+   * observée dans l'historique des ventes si sellPricing = "auto".
+   */
+  resolveStrategy(cfg) {
+    if (cfg?.sellPricing !== "auto") return cfg?.sellPricing || "normal";
+    if (!this.analysisCache.value || Date.now() - this.analysisCache.at > 60000) {
+      try {
+        this.analysisCache = { at: Date.now(), value: analyzeSellStrategies(loadSales(5000)) };
+      } catch {
+        this.analysisCache = { at: Date.now(), value: { recommended: "normal" } };
+      }
+    }
+    return this.analysisCache.value?.recommended || "normal";
+  }
+
+  async cancelOldListings(activeListings) {
+    const maxAgeHours = Math.max(1, Number(this.bot.config.sellMaxAgeHours) || 2);
+    const cutoff = Date.now() - maxAgeHours * 3600 * 1000;
+    const stale = activeListings
+      .filter((listing) => {
+        const created = new Date(listing?.createdAt || 0).getTime();
+        return listing?.id && Number.isFinite(created) && created > 0 && created < cutoff;
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .slice(0, 3);
+    let canceled = 0;
+    for (const listing of stale) {
+      const result = await this.bot.runExclusive("vente", () => this.bot.cancelListing(listing.id));
+      if (result.skipped) break;
+      try {
+        await result.value;
+        canceled += 1;
+        this.state.canceledThisRun += 1;
+        this.bot.log(
+          "info",
+          `Ventes · annonce retirée après ${maxAgeHours} h : ${listing.character?.name || listing.id}`,
+        );
+      } catch (error) {
+        this.bot.log("warn", `Ventes · retrait impossible (${listing.character?.name || listing.id}): ${error.message}`);
+      }
+      await sleep(900 + Math.random() * 1400);
+    }
+    if (canceled) invalidateMyMarket();
+    return canceled;
+  }
+
   async checkSoldListings() {
     if (!this.bot.page || this.bot.page.isClosed()) return;
     if (!this.bot.page.url().startsWith("https://kyara.games")) return;
@@ -423,9 +492,15 @@ export class SellerWorker {
     const market = await getMyMarket(this.bot, { force: true });
     const listings = market.listings;
     this.lastSoldCheck = Date.now();
-    this.state.activeListings = market.activeCount;
     this.state.maxListings = market.maxListings;
     this.state.countKnown = true;
+
+    // Libère les annonces qui ne se vendent pas (2 h par défaut).
+    let canceled = 0;
+    if (this.bot.config.autoSell === true) {
+      canceled = await this.cancelOldListings(market.active);
+    }
+    this.state.activeListings = Math.max(0, market.activeCount - canceled);
 
     // Au premier scan, on mémorise les ventes déjà soldées sans les compter :
     // le bilan horaire démarre à partir des ventes détectées après activation.

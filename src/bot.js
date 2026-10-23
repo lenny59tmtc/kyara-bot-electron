@@ -6,6 +6,7 @@ import { PROFILE_DIR, loadConfig, saveConfig, RARITY_ORDER, RECYCLE_MIN } from "
 import { appendOpening, appendBatch, buildBatchReport, isAlertRarity } from "./store.js";
 import { TradeWorker } from "./trades.js";
 import { SellerWorker } from "./seller.js";
+import { BuyerWorker } from "./buyer.js";
 import { humanClick } from "./human.js";
 import { bus } from "./bus.js";
 
@@ -52,8 +53,11 @@ export class KyaraBot {
     this.lastDupCheck = 0;
     this.rateLimitedUntil = 0;
     this.lastRateLimitLog = 0;
+    this.activity = null;
+    this.activitySince = null;
     this.trades = new TradeWorker(this);
     this.seller = new SellerWorker(this);
+    this.buyer = new BuyerWorker(this);
     this.state = {
       running: false,
       startedAt: null,
@@ -83,6 +87,8 @@ export class KyaraBot {
       browserClosed: false,
       rateLimitedUntil: null,
       marketMaxListings: 10,
+      userId: null,
+      activity: null,
       log: [],
     };
   }
@@ -103,8 +109,30 @@ export class KyaraBot {
         config: this.config,
         trade: this.trades?.snapshot() ?? null,
         sell: this.seller?.snapshot() ?? null,
+        buy: this.buyer?.snapshot() ?? null,
       }),
     );
+  }
+
+  /**
+   * Une seule activité à la fois : ouverture, échange, vente, achat ou
+   * recyclage. Les automatismes qui trouvent le verrou occupé attendent leur
+   * prochain cycle au lieu d'agir en parallèle (compte non bot-like).
+   */
+  async runExclusive(name, fn) {
+    if (this.activity) return { skipped: true, activity: this.activity };
+    this.activity = name;
+    this.activitySince = Date.now();
+    this.state.activity = name;
+    bus.emit("state", this.snapshot());
+    try {
+      return { skipped: false, value: await fn() };
+    } finally {
+      this.activity = null;
+      this.activitySince = null;
+      this.state.activity = null;
+      bus.emit("state", this.snapshot());
+    }
   }
 
   isRateLimited() {
@@ -142,6 +170,7 @@ export class KyaraBot {
     });
     this.trades.start();
     this.seller.start();
+    this.buyer.start();
   }
 
   async stop() {
@@ -151,6 +180,7 @@ export class KyaraBot {
     this.state.browserClosed = false;
     bus.emit("state", this.snapshot());
     await this.seller.stop();
+    await this.buyer.stop();
     await this.trades.stop();
     try {
       await this.context?.close();
@@ -634,7 +664,52 @@ export class KyaraBot {
     }
     this.log("info", `Annonce en ligne: ${opts.name || characterId} à ${amount} ⚡ (${type === "auction" ? "enchère" : "vente directe"}, ${durationHours} h)`);
     bus.emit("state", this.snapshot());
-    return { ok: true, listing: res?.body, price: amount, type, durationHours };
+    const payload = res?.body || {};
+    return { ok: true, listing: payload.listing ?? payload, price: amount, type, durationHours };
+  }
+
+  async postMarket(path, body = {}) {
+    await this.ensureBrowser();
+    let res = await this.apiPost(path, body);
+    if (res?.body?.error === "pass_required" || res?.body?.error === "turnstile_failed") {
+      if (await this.ensurePass()) res = await this.apiPost(path, body);
+    }
+    if (res?.error) {
+      const error = new Error(res.error);
+      error.code = res.error;
+      throw error;
+    }
+    if (res?.body?.error) {
+      const error = new Error(res.body.message || res.body.error);
+      error.code = res.body.error;
+      throw error;
+    }
+    return res?.body || {};
+  }
+
+  async buyListing(listingId) {
+    const body = await this.postMarket(`/market/listings/${encodeURIComponent(listingId)}/buy`, {});
+    return { ok: true, listing: body.listing ?? null, user: body.user ?? null, raw: body };
+  }
+
+  async createBuyOrder(characterId, price) {
+    const body = await this.postMarket("/market/buy-orders", {
+      characterId: Number(characterId),
+      price: Math.max(1, Math.round(Number(price) || 1)),
+    });
+    return { ok: true, order: body.order ?? body.buyOrder ?? null, user: body.user ?? null, raw: body };
+  }
+
+  async cancelListing(listingId) {
+    await this.postMarket(`/market/listings/${encodeURIComponent(listingId)}/cancel`, {});
+    return { ok: true };
+  }
+
+  async recycle(characterId, qty = 1) {
+    const body = await this.postMarket(`/me/collection/${encodeURIComponent(characterId)}/recycle`, {
+      qty: Math.max(1, Math.floor(Number(qty) || 1)),
+    });
+    return { ok: true, chakra: Number(body.chakra ?? body.gain ?? 0) || 0, raw: body };
   }
 
   async loop() {
@@ -695,8 +770,12 @@ export class KyaraBot {
               } catch {}
             }
 
-            const opened = await this.tick(me);
-            if (opened) {
+            const openedResult = await this.runExclusive("ouverture", () => this.tick(me));
+            const opened = !openedResult.skipped && Boolean(openedResult.value);
+            if (openedResult.skipped) {
+              // Une autre activité (vente, achat, échange) est en cours.
+              waitMs = 8000;
+            } else if (opened) {
               waitMs = 4000;
             } else if (me.nextFreeAt) {
               const delta = new Date(me.nextFreeAt).getTime() - Date.now() + 20000;
@@ -813,6 +892,7 @@ export class KyaraBot {
 
   applyMe(me) {
     this.state.pseudo = me.pseudo ?? this.state.pseudo;
+    this.state.userId = me.id ?? this.state.userId;
     this.state.avatar = me.discord?.avatar ?? this.state.avatar;
     this.state.chakra = me.chakra;
     this.state.freePacks = me.freePacks;

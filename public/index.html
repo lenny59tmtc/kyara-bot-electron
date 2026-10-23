@@ -79,7 +79,7 @@
   .tsep { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .tsep .w { font-weight: 800; color: var(--gold); }
   .tsep .r { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
-  nav.tabs { display: flex; gap: 6px; }
+  nav.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
   nav.tabs button {
     background: transparent; border: 1px solid var(--line); color: var(--dim);
     border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: 13px;
@@ -323,6 +323,39 @@
     .chart .cbar span { display: none; }
     .stats { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
   }
+
+  /* --- Recyclage, achats, modales --- */
+  #viewRecycle, #viewBuy { grid-template-columns: minmax(0, 1fr); }
+  .recycle-table input[type="number"] { width: 62px; padding: 5px 6px; }
+  .recycle-table td { height: 50px; }
+  .recycle-table .who { min-width: 240px; }
+  .recycle-table .who img { width: 32px; height: 32px; }
+  .recycle-table th:first-child, .recycle-table td:first-child { text-align: center; }
+  .recycle-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--acc); }
+  .series-buy-btn { padding: 5px 8px; font-size: 11px; margin-top: 2px; }
+  .buy-order { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #211e29; }
+  .buy-order:last-child { border-bottom: 0; }
+  .buy-order img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; background: #12101a; }
+  .buy-order .bo-main { flex: 1; min-width: 0; }
+  .buy-order .bo-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .buy-order .bo-sub { color: var(--dim); font-size: 11px; }
+  .buy-order .bo-price { font-weight: 800; color: var(--gold); white-space: nowrap; }
+  .activity-pill { color: var(--gold); font-weight: 700; }
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+    padding: 18px; background: rgba(5, 4, 8, .72); backdrop-filter: blur(3px);
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-card {
+    width: min(470px, 100%); max-height: 90vh; overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px; display: grid; gap: 12px; box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+  }
+  .modal-card h3 { margin: 0; }
+  .modal-card input[type="number"] { width: 100%; }
+  @media (max-width: 700px) {
+    .recycle-table { min-width: 760px; }
+  }
 </style>
 </head>
 <body>
@@ -346,6 +379,8 @@
     <button id="tabSeries">Séries</button>
     <button id="tabTrade">Échanges</button>
     <button id="tabSell">Ventes & bilan</button>
+    <button id="tabRecycle">Recyclage</button>
+    <button id="tabBuy">Achat auto</button>
   </nav>
   <button id="toggle">Arrêter</button>
 </header>
@@ -534,6 +569,7 @@
           <option value="owned">Cartes possédées ↑</option>
           <option value="total">Taille de l'album ↑</option>
           <option value="completion">Complétion ↑</option>
+          <option value="completion_desc">Complétion ↓ (les plus avancées)</option>
           <option value="name">Nom A → Z</option>
         </select>
       </div>
@@ -630,6 +666,9 @@
         </p>
         <div class="sub2" id="sellNext"></div>
 
+        <div class="cfg-title">Analyse des ventes</div>
+        <div class="sub2" id="strategyAnalysis">Pas encore assez de ventes pour comparer les stratégies.</div>
+
         <div class="cfg-title">Réglages de la vente automatique</div>
         <label class="switch-row">
           <span>Vente automatique activée</span>
@@ -654,6 +693,7 @@
             <option value="fast">Vite — prix bas, vente rapide</option>
             <option value="normal">Normal — prix conseillé</option>
             <option value="patient">Patient — prix plus haut</option>
+            <option value="auto">Automatique — la plus rapide selon mes ventes</option>
           </select>
         </label>
         <label class="switch-row">
@@ -671,6 +711,12 @@
             <input type="number" id="sellDelayMax" min="5" max="600" step="5" />
           </div>
         </label>
+        <label>Retirer les annonces invendues après (heures)
+          <input type="number" id="sellMaxAgeHours" min="1" max="48" step="1" />
+        </label>
+        <p class="sub2 cfg-note">
+          À l'échéance, l'annonce est annulée pour libérer le doublon et la place dans la limite des 10 annonces.
+        </p>
         <div class="row"><button class="ghost" id="saveSell">Enregistrer</button></div>
       </div>
     </div>
@@ -681,17 +727,164 @@
   </aside>
 </main>
 
+<main id="viewRecycle" style="display:none">
+  <section>
+    <div class="panel">
+      <div class="ohead">
+        <h2 style="margin:0">Recyclage des cartes</h2>
+        <div class="spacer"></div>
+        <span class="sub2" id="recycleAt"></span>
+        <button class="ghost" id="recycleRefresh">Rafraîchir</button>
+      </div>
+      <div class="market-msg" id="recycleMsg" hidden></div>
+      <div class="stats" id="recycleStats"></div>
+      <div class="row" style="margin-bottom:12px;flex-wrap:wrap">
+        <input type="search" id="recycleQ" placeholder="Rechercher une carte, une série…" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;min-width:230px" />
+        <select id="recycleRarity" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="ALL">Toutes les raretés</option>
+          <option value="M">Mythique</option>
+          <option value="L">Légendaire</option>
+          <option value="E">Épique</option>
+          <option value="R">Rare</option>
+          <option value="U">Peu commun</option>
+          <option value="C">Commun</option>
+        </select>
+        <select id="recycleMode" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="duplicates">Doublons uniquement</option>
+          <option value="all">Toutes les cartes</option>
+          <option value="singles">Cartes uniques</option>
+        </select>
+        <button class="ghost" id="recycleSelect">Tout sélectionner (filtré)</button>
+        <button class="ghost" id="recycleClear">Décocher</button>
+        <div class="spacer"></div>
+        <span class="sub2" id="recycleSelection">0 carte · 0 ⚡</span>
+        <button class="ghost" id="recycleGo" disabled>Recycler la sélection</button>
+      </div>
+      <div class="table-wrap">
+        <table class="dup recycle-table">
+          <thead>
+            <tr>
+              <th style="width:28px"></th>
+              <th>Carte</th>
+              <th>Rareté</th>
+              <th>Possédées</th>
+              <th>À recycler</th>
+              <th>Valeur / carte</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="recycleBody"><tr><td colspan="7" class="empty">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="sub2" id="recycleCount"></span>
+        <div class="spacer"></div>
+        <button class="ghost" id="recycleMore" hidden>Afficher plus</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="viewBuy" style="display:none">
+  <section>
+    <div class="panel">
+      <div class="ohead">
+        <h2 style="margin:0">Achats automatiques</h2>
+        <div class="spacer"></div>
+        <span class="badge-auto" id="buyBadge">désactivé</span>
+        <span class="sub2" id="buyState">—</span>
+      </div>
+      <div class="market-msg" id="buyMsg" hidden></div>
+      <div class="stats" id="buyStats"></div>
+      <div class="sub2" id="buyNext" style="margin-bottom:14px"></div>
+      <div class="ohead">
+        <h2 style="margin:0">Ordres d'achat actifs</h2>
+        <div class="spacer"></div>
+        <button class="ghost" id="buyRefresh">Rafraîchir</button>
+      </div>
+      <div id="buyOrders"><div class="empty">Aucun ordre d'achat.</div></div>
+    </div>
+  </section>
+  <aside>
+    <div class="panel" style="margin-bottom:18px" id="buyConfigPanel">
+      <h2>Réglages de l'achat automatique</h2>
+      <div class="cfg">
+        <label class="switch-row">
+          <span>Achat automatique activé</span>
+          <span class="switch"><input type="checkbox" id="autoBuy" /><span class="slider"></span></span>
+        </label>
+        <p class="sub2 cfg-note">
+          Place des ordres d'achat sur les cartes non possédées, au prix le plus bas observé.
+        </p>
+        <label>Prix maximum par carte (⚡)
+          <input type="number" id="buyMaxPrice" min="1" max="100000" step="1" />
+        </label>
+        <label>Priorité
+          <select id="buyPriority">
+            <option value="completion">Compléter les séries d'abord</option>
+            <option value="cheapest">Cartes les moins chères d'abord</option>
+            <option value="balanced">Équilibré prix / complétion</option>
+          </select>
+        </label>
+        <label>Intervalle entre deux passes (secondes)
+          <div class="row">
+            <input type="number" id="buyIntervalMin" min="30" max="3600" step="10" />
+            <span>et</span>
+            <input type="number" id="buyIntervalMax" min="30" max="3600" step="10" />
+          </div>
+        </label>
+        <label>Ordres maximum par passe
+          <input type="number" id="buyMaxPerRun" min="1" max="5" step="1" />
+        </label>
+        <div class="row"><button class="ghost" id="saveBuy">Enregistrer</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Derniers ordres</h2>
+      <div class="log" id="buyLog"></div>
+    </div>
+  </aside>
+</main>
+
 <footer class="app-footer">
   <img class="footer-ico" src="/icon.png" alt="" />
   <span>Kyara Bot <b id="footerVer">—</b></span>
   <span class="fsep">·</span>
   <span id="footerState">tableau de bord local</span>
   <span class="fsep">·</span>
+  <span id="activityState" class="activity-pill"></span>
+  <span class="fsep">·</span>
   <span>© 2026 lenny59tmtc</span>
 </footer>
 
 <a id="updateBtn" class="update-btn" hidden></a>
 <div id="toast"></div>
+
+<div id="seriesBuyModal" class="modal-backdrop" hidden>
+  <div class="modal-card">
+    <div class="ohead">
+      <h3 style="margin:0">Acheter les manquantes</h3>
+      <div class="spacer"></div>
+      <button class="ghost" id="seriesBuyClose">×</button>
+    </div>
+    <p class="sub2" id="seriesBuySeries" style="margin:0"></p>
+    <label>Prix maximum par carte (⚡)
+      <input type="number" id="seriesBuyMaxPrice" min="1" max="100000" step="1" />
+    </label>
+    <label>Nombre maximum de cartes
+      <input type="number" id="seriesBuyLimit" min="1" max="5" step="1" />
+    </label>
+    <p class="sub2" style="margin:0">
+      Le bot achète les annonces fixes les moins chères, une carte à la fois, sans dépasser le budget.
+      Une seule activité tourne à la fois.
+    </p>
+    <div class="row">
+      <button class="ghost" id="seriesBuyCancel">Annuler</button>
+      <button id="seriesBuyStart">Lancer l'achat</button>
+    </div>
+    <div class="sub2" id="seriesBuyResult"></div>
+  </div>
+</div>
 
 <script>
 const RARITY = {
@@ -926,6 +1119,16 @@ function renderState() {
           ? "en marche"
           : "arrêté";
   $("status").title = state.lastError || "";
+  if ($("activityState")) {
+    const labels = {
+      ouverture: "ouverture de boosters",
+      vente: "ventes",
+      achat: "achats",
+      echange: "échanges",
+      recyclage: "recyclage",
+    };
+    $("activityState").textContent = state.activity ? `activité : ${labels[state.activity] || state.activity}` : "";
+  }
   if (needsLogin) {
     $("user").innerHTML = "<b>Compte invité</b> · connexion Discord requise";
   } else {
@@ -1171,8 +1374,33 @@ function renderSales(data) {
   $("chakraHour").textContent = `${stats.lastHourChakra ?? 0} ⚡`;
   renderSellChart(stats.buckets || []);
   renderSellList(data.history || []);
+  renderStrategyAnalysis(data.strategy);
   renderSellStatus();
   renderSellLog();
+}
+
+function fmtDuration(hours) {
+  if (hours == null || !Number.isFinite(Number(hours))) return "—";
+  const value = Number(hours);
+  if (value < 1) return `${Math.max(1, Math.round(value * 60))} min`;
+  return `${value.toFixed(1).replace(".", ",")} h`;
+}
+
+function renderStrategyAnalysis(analysis) {
+  const box = $("strategyAnalysis");
+  if (!box) return;
+  if (!analysis || !analysis.events) {
+    box.innerHTML = "Pas encore assez de ventes pour comparer les stratégies.";
+    return;
+  }
+  const lines = analysis.strategies
+    .filter((entry) => entry.count > 0)
+    .map(
+      (entry) =>
+        `<div>${escapeHtml(entry.label)} : <b>${entry.count}</b> vente(s) · médiane <b>${fmtDuration(entry.medianHours)}</b></div>`,
+    )
+    .join("");
+  box.innerHTML = `<div style="margin-bottom:4px">Plus rapide : <b>${escapeHtml(analysis.recommendedLabel)}</b>${analysis.enoughData ? "" : " (échantillon faible)"}</div>${lines}`;
 }
 
 function renderSellChart(buckets) {
@@ -1241,10 +1469,15 @@ function renderSellStatus() {
   }
   if ($("sellHint")) {
     const rarity = RARITY[cfg.sellMaxRarity]?.[0] || cfg.sellMaxRarity || "Rare";
-    const pricing = { fast: "Vite", normal: "Normal", patient: "Patient" }[cfg.sellPricing] || "Normal";
+    const pricing = {
+      fast: "Vite",
+      normal: "Normal",
+      patient: "Patient",
+      auto: `Auto (${seller?.strategy || "calcul"})`,
+    }[cfg.sellPricing] || "Normal";
     const stealth = cfg.sellStealth !== false;
     $("sellHint").textContent = enabled
-      ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s · ${stealth ? "mode discret" : "mode rapide"}`
+      ? `Rareté max : ${rarity} · stratégie ${pricing} · délai ${cfg.sellDelayMin ?? 30}-${cfg.sellDelayMax ?? 90} s · retrait après ${cfg.sellMaxAgeHours ?? 2} h · ${stealth ? "mode discret" : "mode rapide"}`
       : "Active la vente automatique dans les réglages ci-dessous (onglet Ventes & bilan).";
   }
   updateSellCountdown();
@@ -1322,11 +1555,18 @@ function applyConfig(c) {
   $("sellDelayMin").value = c.sellDelayMin ?? 30;
   $("sellDelayMax").value = c.sellDelayMax ?? 90;
   $("sellStealth").checked = c.sellStealth !== false;
+  $("sellMaxAgeHours").value = c.sellMaxAgeHours ?? 2;
+  $("autoBuy").checked = c.autoBuy === true;
+  $("buyMaxPrice").value = c.buyMaxPrice ?? 20;
+  $("buyPriority").value = c.buyPriority || "completion";
+  $("buyIntervalMin").value = c.buyIntervalMin ?? 90;
+  $("buyIntervalMax").value = c.buyIntervalMax ?? 240;
+  $("buyMaxPerRun").value = c.buyMaxPerRun ?? 2;
   resetSaveButtons();
 }
 
 function resetSaveButtons() {
-  for (const id of ["saveOpen", "saveDup", "saveSell"]) {
+  for (const id of ["saveOpen", "saveDup", "saveSell", "saveBuy"]) {
     const button = $(id);
     if (!button) continue;
     button.textContent = "Enregistrer";
@@ -1392,6 +1632,7 @@ $("saveSell").addEventListener("click", () => {
       sellDelayMin: Number($("sellDelayMin").value) || 30,
       sellDelayMax: Number($("sellDelayMax").value) || 90,
       sellStealth: $("sellStealth").checked,
+      sellMaxAgeHours: Number($("sellMaxAgeHours").value) || 2,
     },
     $("saveSell"),
   );
@@ -1404,6 +1645,7 @@ for (const [panelId, buttonId] of [
   ["configPanel", "saveOpen"],
   ["dupConfigPanel", "saveDup"],
   ["sellConfigPanel", "saveSell"],
+  ["buyConfigPanel", "saveBuy"],
 ]) {
   const panel = $(panelId);
   if (!panel) continue;
@@ -1594,6 +1836,7 @@ function seriesCard(row) {
       <div class="series-bar"><i style="width:${percent}%"></i></div>
       <div class="series-sub">${percent}% · ${row.copies} exemplaire(s)</div>
       <div class="series-rar">${rarities}</div>
+      <button class="ghost series-buy-btn" data-series-buy="${escapeHtml(row.series)}">Acheter les manquantes</button>
     </div>
   </div>`;
 }
@@ -1626,6 +1869,8 @@ function renderSeries() {
     rows.sort((a, b) => a.series.localeCompare(b.series, "fr"));
   } else if (sort === "completion") {
     rows.sort((a, b) => a.completion - b.completion || a.owned - b.owned || a.series.localeCompare(b.series, "fr"));
+  } else if (sort === "completion_desc") {
+    rows.sort((a, b) => b.completion - a.completion || b.owned - a.owned || a.series.localeCompare(b.series, "fr"));
   } else {
     rows.sort((a, b) => a.owned - b.owned || a.total - b.total || a.series.localeCompare(b.series, "fr"));
   }
@@ -1713,21 +1958,367 @@ async function loadSeries() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Recyclage
+// ---------------------------------------------------------------------------
+let recycleData = null;
+let recycleLoading = false;
+let recycleSelected = new Map();
+let recycleVisible = 200;
+
+function showRecycleMessage(kind, text) {
+  const box = $("recycleMsg");
+  if (!box) return;
+  box.hidden = !text;
+  box.className = `market-msg ${kind || ""}`.trim();
+  box.textContent = text || "";
+}
+
+function recycleFilteredRows() {
+  if (!recycleData?.rows) return [];
+  const query = $("recycleQ").value.trim().toLowerCase();
+  const rarity = $("recycleRarity").value;
+  const mode = $("recycleMode").value;
+  return recycleData.rows.filter((row) => {
+    if (rarity !== "ALL" && row.rarity !== rarity) return false;
+    if (mode === "duplicates" && row.qty <= 1) return false;
+    if (mode === "singles" && row.qty > 1) return false;
+    if (query && !`${row.name} ${row.series}`.toLowerCase().includes(query)) return false;
+    return true;
+  });
+}
+
+function recycleSelectionInfo() {
+  let qty = 0;
+  let total = 0;
+  for (const [characterId, count] of recycleSelected) {
+    const row = recycleData?.rows?.find((entry) => entry.characterId === Number(characterId));
+    if (!row) continue;
+    qty += count;
+    total += count * row.recycleValue;
+  }
+  return { qty, total };
+}
+
+function renderRecycle() {
+  if (!recycleData) return;
+  const rows = recycleFilteredRows();
+  const shown = rows.slice(0, recycleVisible);
+  $("recycleStats").innerHTML = [
+    ["Cartes possédées", recycleData.summary?.cards ?? 0],
+    ["Cartes distinctes", recycleData.summary?.distinct ?? 0],
+    ["Doublons", recycleData.summary?.duplicates ?? 0],
+    ["Valeur totale", `${recycleData.summary?.value ?? 0} ⚡`],
+  ]
+    .map(([key, value]) => `<div class="stat"><div class="v">${escapeHtml(String(value))}</div><div class="k">${key}</div></div>`)
+    .join("");
+  $("recycleBody").innerHTML = shown.length
+    ? shown
+        .map((row) => {
+          const checked = recycleSelected.has(row.characterId);
+          const count = checked ? recycleSelected.get(row.characterId) : 1;
+          return `<tr>
+            <td><input type="checkbox" data-recycle-check="${row.characterId}" ${checked ? "checked" : ""} /></td>
+            <td><div class="who">${row.image ? `<img src="${escapeHtml(row.image)}" loading="lazy" alt="" />` : ""}<div><div class="n">${escapeHtml(row.name)}</div><div class="s">${escapeHtml(row.series)}</div></div></div></td>
+            <td><span class="chip" style="background:${(RARITY[row.rarity] || ["?", "#888"])[1]}">${(RARITY[row.rarity] || [row.rarity || "?"])[0]}</span></td>
+            <td>${row.qty}</td>
+            <td><input type="number" min="1" max="${row.qty}" value="${count}" data-recycle-qty="${row.characterId}" ${checked ? "" : "disabled"} /></td>
+            <td class="price">${row.recycleValue} ⚡</td>
+            <td class="price" data-recycle-total="${row.characterId}">${checked ? count * row.recycleValue : 0} ⚡</td>
+          </tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="7" class="empty">Aucune carte ne correspond aux filtres.</td></tr>';
+  const selection = recycleSelectionInfo();
+  $("recycleSelection").textContent = `${selection.qty} carte(s) · ${selection.total} ⚡`;
+  $("recycleGo").disabled = selection.qty === 0;
+  $("recycleCount").textContent = `${rows.length} résultat(s) — ${shown.length} affiché(s)`;
+  $("recycleMore").hidden = shown.length >= rows.length;
+  $("recycleAt").textContent = recycleData.at
+    ? `collection analysée à ${new Date(recycleData.at).toLocaleTimeString("fr-FR")}`
+    : "";
+}
+
+async function loadRecycle(force = false) {
+  if (recycleLoading) return;
+  recycleLoading = true;
+  const btn = $("recycleRefresh");
+  btn.disabled = true;
+  btn.textContent = "Chargement…";
+  showRecycleMessage("", "Lecture de la collection…");
+  try {
+    const response = await fetch("/api/collection");
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    recycleData = data;
+    recycleVisible = 200;
+    renderRecycle();
+    showRecycleMessage("ok", `${data.rows.length} carte(s) chargée(s).`);
+    setTimeout(() => {
+      if ($("recycleMsg").classList.contains("ok")) $("recycleMsg").hidden = true;
+    }, 4000);
+  } catch (error) {
+    showRecycleMessage("error", `Impossible de charger la collection : ${error.message}`);
+    $("recycleBody").innerHTML = '<tr><td colspan="7" class="empty">Collection indisponible.</td></tr>';
+  } finally {
+    recycleLoading = false;
+    btn.disabled = false;
+    btn.textContent = "Rafraîchir";
+  }
+}
+
+$("recycleBody").addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-recycle-check]");
+  if (checkbox) {
+    const characterId = Number(checkbox.dataset.recycleCheck);
+    if (checkbox.checked) recycleSelected.set(characterId, 1);
+    else recycleSelected.delete(characterId);
+    renderRecycle();
+    return;
+  }
+  const qtyInput = event.target.closest("[data-recycle-qty]");
+  if (qtyInput) {
+    const characterId = Number(qtyInput.dataset.recycleQty);
+    const row = recycleData?.rows?.find((entry) => entry.characterId === characterId);
+    const value = Math.max(1, Math.min(row?.qty || 1, Number(qtyInput.value) || 1));
+    if (recycleSelected.has(characterId)) recycleSelected.set(characterId, value);
+    renderRecycle();
+  }
+});
+$("recycleQ").addEventListener("input", () => {
+  recycleVisible = 200;
+  renderRecycle();
+});
+$("recycleRarity").addEventListener("change", () => {
+  recycleVisible = 200;
+  renderRecycle();
+});
+$("recycleMode").addEventListener("change", () => {
+  recycleVisible = 200;
+  renderRecycle();
+});
+$("recycleMore").addEventListener("click", () => {
+  recycleVisible += 200;
+  renderRecycle();
+});
+$("recycleSelect").addEventListener("click", () => {
+  for (const row of recycleFilteredRows()) {
+    if (!recycleSelected.has(row.characterId)) recycleSelected.set(row.characterId, 1);
+  }
+  renderRecycle();
+});
+$("recycleClear").addEventListener("click", () => {
+  recycleSelected.clear();
+  renderRecycle();
+});
+$("recycleRefresh").addEventListener("click", () => loadRecycle(true));
+$("recycleGo").addEventListener("click", async () => {
+  const selection = recycleSelectionInfo();
+  if (!selection.qty) return;
+  const items = [...recycleSelected.entries()].map(([characterId, qty]) => ({ characterId, qty }));
+  if (!window.confirm(`Recycler ${selection.qty} carte(s) pour environ ${selection.total} ⚡ ?`)) return;
+  const button = $("recycleGo");
+  button.disabled = true;
+  button.textContent = "Recyclage…";
+  showRecycleMessage("", "Recyclage en cours, une carte à la fois…");
+  try {
+    const response = await fetch("/api/recycle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+    const errors = (result.results || []).filter((entry) => !entry.ok);
+    showRecycleMessage(
+      errors.length ? "warn" : "ok",
+      `${result.recycled || 0} carte(s) recyclée(s) pour ${result.totalChakra || 0} ⚡${
+        errors.length ? ` · ${errors.length} échec(s) : ${errors[0].error}` : ""
+      }`,
+    );
+    recycleSelected.clear();
+    seriesData = null;
+    await loadRecycle(true);
+  } catch (error) {
+    showRecycleMessage("error", `Recyclage impossible : ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Recycler la sélection";
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Achat automatique
+// ---------------------------------------------------------------------------
+let buyData = null;
+let buyLoading = false;
+
+function showBuyMessage(kind, text) {
+  const box = $("buyMsg");
+  if (!box) return;
+  box.hidden = !text;
+  box.className = `market-msg ${kind || ""}`.trim();
+  box.textContent = text || "";
+}
+
+function renderBuy() {
+  if (!buyData) return;
+  const st = buyData.state || {};
+  const cfg = state?.config || config || {};
+  const enabled = cfg.autoBuy === true;
+  $("buyBadge").textContent = enabled ? "activé" : "désactivé";
+  $("buyBadge").className = `badge-auto ${enabled ? "on" : ""}`;
+  $("buyState").textContent = st.phase || "—";
+  $("buyStats").innerHTML = [
+    ["Candidats", st.candidates ?? 0],
+    ["Ordres placés", st.ordersPlaced ?? 0],
+    ["Ordres actifs", (buyData.orders || []).length],
+    ["Stratégie", { cheapest: "Moins chères", completion: "Complétion", balanced: "Équilibré" }[st.strategy] || "—"],
+  ]
+    .map(([key, value]) => `<div class="stat"><div class="v">${escapeHtml(String(value))}</div><div class="k">${key}</div></div>`)
+    .join("");
+  $("buyNext").textContent = st.nextAt
+    ? `Prochaine passe dans ${Math.max(0, Math.ceil((new Date(st.nextAt).getTime() - Date.now()) / 1000))} s${st.lastError ? ` · ${st.lastError}` : ""}`
+    : st.lastError || "";
+  const orders = buyData.orders || [];
+  $("buyOrders").innerHTML = orders.length
+    ? orders
+        .slice(0, 40)
+        .map((order) => {
+          const name = order.character?.name || order.name || `#${order.characterId || "?"}`;
+          const series = order.character?.series || order.series || "";
+          return `<div class="buy-order">
+            ${order.character?.image ? `<img src="${escapeHtml(order.character.image)}" loading="lazy" alt="" />` : ""}
+            <div class="bo-main"><div class="bo-name">${escapeHtml(name)}</div><div class="bo-sub">${escapeHtml(series)} · ${escapeHtml(order.status || "ouvert")}</div></div>
+            <div class="bo-price">${Number(order.price) || 0} ⚡</div>
+          </div>`;
+        })
+        .join("")
+    : '<div class="empty">Aucun ordre d\'achat actif.</div>';
+  const history = st.history || [];
+  $("buyLog").innerHTML = history.length
+    ? history
+        .map((entry) => `<div>${fmtTime(entry.at)} · ${escapeHtml(entry.name)} · ${entry.price} ⚡ · ${escapeHtml(entry.series || "")}</div>`)
+        .join("")
+    : '<div class="empty" style="padding:8px 0;font-size:12px">Aucun ordre placé pour l\'instant.</div>';
+}
+
+async function refreshBuy() {
+  if (buyLoading) return;
+  buyLoading = true;
+  try {
+    const response = await fetch("/api/buy");
+    buyData = await response.json();
+    renderBuy();
+  } catch (error) {
+    showBuyMessage("error", `Impossible de charger l'achat automatique : ${error.message}`);
+  } finally {
+    buyLoading = false;
+  }
+}
+
+$("saveBuy").addEventListener("click", () => {
+  saveConfigPatch(
+    {
+      autoBuy: $("autoBuy").checked,
+      buyMaxPrice: Number($("buyMaxPrice").value) || 20,
+      buyPriority: $("buyPriority").value,
+      buyIntervalMin: Number($("buyIntervalMin").value) || 90,
+      buyIntervalMax: Number($("buyIntervalMax").value) || 240,
+      buyMaxPerRun: Number($("buyMaxPerRun").value) || 2,
+    },
+    $("saveBuy"),
+  );
+  setTimeout(refreshBuy, 700);
+});
+$("buyRefresh").addEventListener("click", () => refreshBuy());
+setInterval(() => {
+  if ($("viewBuy")?.style.display !== "none") refreshBuy();
+}, 12000);
+setInterval(() => {
+  if (buyData?.state?.nextAt) renderBuy();
+}, 1000);
+
+// ---------------------------------------------------------------------------
+// Achat des manquantes d'une série
+// ---------------------------------------------------------------------------
+let seriesBuyTarget = null;
+
+function openSeriesBuy(series) {
+  seriesBuyTarget = series;
+  $("seriesBuySeries").textContent = series;
+  $("seriesBuyMaxPrice").value = Math.max(1, Number(config?.buyMaxPrice) || 20);
+  $("seriesBuyLimit").value = 3;
+  $("seriesBuyResult").textContent = "";
+  $("seriesBuyStart").disabled = false;
+  $("seriesBuyStart").textContent = "Lancer l'achat";
+  $("seriesBuyModal").hidden = false;
+}
+
+function closeSeriesBuy() {
+  $("seriesBuyModal").hidden = true;
+  seriesBuyTarget = null;
+}
+
+$("seriesBuyClose").addEventListener("click", closeSeriesBuy);
+$("seriesBuyCancel").addEventListener("click", closeSeriesBuy);
+$("seriesBuyModal").addEventListener("click", (event) => {
+  if (event.target === $("seriesBuyModal")) closeSeriesBuy();
+});
+$("seriesBuyStart").addEventListener("click", async () => {
+  if (!seriesBuyTarget) return;
+  const maxPrice = Math.max(1, Number($("seriesBuyMaxPrice").value) || 20);
+  const limit = Math.min(5, Math.max(1, Number($("seriesBuyLimit").value) || 3));
+  const button = $("seriesBuyStart");
+  const resultBox = $("seriesBuyResult");
+  button.disabled = true;
+  button.textContent = "Achat en cours…";
+  resultBox.textContent = "Recherche des annonces les moins chères…";
+  try {
+    const response = await fetch("/api/series/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ series: seriesBuyTarget, maxPrice, limit }),
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    const bought = data.results.filter((entry) => entry.ok);
+    const failed = data.results.filter((entry) => !entry.ok);
+    resultBox.innerHTML = `
+      <div><b>${bought.length}</b> achat(s) effectué(s).</div>
+      ${bought.map((entry) => `<div>✓ ${escapeHtml(entry.name)} — ${entry.price} ⚡</div>`).join("")}
+      ${failed.map((entry) => `<div>✗ ${escapeHtml(entry.name || "")} — ${escapeHtml(entry.reason || "échec")}</div>`).join("")}
+    `;
+    seriesData = null;
+    loadSeries();
+    toast(`${bought.length} carte(s) achetée(s)`);
+  } catch (error) {
+    resultBox.textContent = `Achat impossible : ${error.message}`;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Lancer l'achat";
+  }
+});
+
 function switchTab(name) {
   const isDup = name === "dup";
   const isSeries = name === "series";
   const isTrade = name === "trade";
   const isSell = name === "sell";
-  $("viewOpen").style.display = isDup || isSeries || isTrade || isSell ? "none" : "";
+  const isRecycle = name === "recycle";
+  const isBuy = name === "buy";
+  $("viewOpen").style.display = isDup || isSeries || isTrade || isSell || isRecycle || isBuy ? "none" : "";
   $("viewDup").style.display = isDup ? "" : "none";
   $("viewSeries").style.display = isSeries ? "" : "none";
   $("viewTrade").style.display = isTrade ? "" : "none";
   $("viewSell").style.display = isSell ? "" : "none";
-  $("tabOpen").classList.toggle("on", !isDup && !isSeries && !isTrade && !isSell);
-  $("tabDup").classList.toggle("on", isDup);
-  $("tabSeries").classList.toggle("on", isSeries);
-  $("tabTrade").classList.toggle("on", isTrade);
-  $("tabSell").classList.toggle("on", isSell);
+  $("viewRecycle").style.display = isRecycle ? "" : "none";
+  $("viewBuy").style.display = isBuy ? "" : "none";
+  const tabs = { open: !(isDup || isSeries || isTrade || isSell || isRecycle || isBuy), dup: isDup, series: isSeries, trade: isTrade, sell: isSell, recycle: isRecycle, buy: isBuy };
+  for (const [tab, active] of Object.entries(tabs)) {
+    const button = $(`tab${tab[0].toUpperCase()}${tab.slice(1)}`);
+    if (button) button.classList.toggle("on", active);
+  }
   try {
     if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
   } catch {}
@@ -1735,6 +2326,8 @@ function switchTab(name) {
   if (isSeries && !seriesData) loadSeries();
   if (isTrade) refreshTrades();
   if (isSell) refreshSales();
+  if (isRecycle && !recycleData) loadRecycle();
+  if (isBuy) refreshBuy();
 }
 
 $("tabOpen").addEventListener("click", () => switchTab("open"));
@@ -1742,6 +2335,8 @@ $("tabDup").addEventListener("click", () => switchTab("dup"));
 $("tabSeries").addEventListener("click", () => switchTab("series"));
 $("tabTrade").addEventListener("click", () => switchTab("trade"));
 $("tabSell").addEventListener("click", () => switchTab("sell"));
+$("tabRecycle").addEventListener("click", () => switchTab("recycle"));
+$("tabBuy").addEventListener("click", () => switchTab("buy"));
 $("dupRefresh").addEventListener("click", () => loadDuplicates(true));
 $("browserRestart").addEventListener("click", restartBrowser);
 $("systemAction").addEventListener("click", restartBrowser);
@@ -1752,6 +2347,11 @@ $("seriesRefresh").addEventListener("click", () => loadSeries());
 $("seriesQ").addEventListener("input", renderSeries);
 $("seriesFilter").addEventListener("change", renderSeries);
 $("seriesSort").addEventListener("change", renderSeries);
+$("seriesGrid").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-series-buy]");
+  if (!button) return;
+  openSeriesBuy(button.dataset.seriesBuy);
+});
 $("sellRefresh").addEventListener("click", () => refreshSales());
 
 async function loadDuplicates(refresh = false) {
@@ -2018,7 +2618,7 @@ async function tickNext() {
   // Vérification fréquente pour afficher la progression du téléchargement auto.
   setInterval(refreshUpdate, 10000);
   const initialTab = location.hash.replace("#", "");
-  if (["dup", "series", "trade", "sell"].includes(initialTab)) switchTab(initialTab);
+  if (["dup", "series", "trade", "sell", "recycle", "buy"].includes(initialTab)) switchTab(initialTab);
 })();
 </script>
 </body>

@@ -36,6 +36,10 @@ export async function getMyMarket(bot, { force = false } = {}) {
   });
   const active = mine.filter((listing) => String(listing?.status || "").toLowerCase() === "active");
   const sold = mine.filter((listing) => String(listing?.status || "").toLowerCase() === "sold");
+  const buyOrders = Array.isArray(response?.buyOrders) ? response.buyOrders : [];
+  const openBuyOrders = buyOrders.filter(
+    (order) => !["filled", "cancelled", "canceled", "expired"].includes(String(order?.status || "").toLowerCase()),
+  );
   const data = {
     at: new Date().toISOString(),
     listings: mine,
@@ -43,6 +47,8 @@ export async function getMyMarket(bot, { force = false } = {}) {
     activeCount: active.length,
     sold,
     soldCount: sold.length,
+    buyOrders,
+    openBuyOrders,
     total: mine.length,
     maxListings: Number(bot.state?.marketMaxListings) || 10,
   };

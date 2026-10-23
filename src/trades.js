@@ -121,6 +121,12 @@ export class TradeWorker {
           if (!(await this.idle(4000))) break;
           continue;
         }
+        if (this.bot.activity && this.bot.activity !== "echange") {
+          this.state.filters = { missing: false, dupes: false };
+          this.state.candidates = 0;
+          if (!(await this.idle(3000))) break;
+          continue;
+        }
         if (await this.waitWhileOpening()) break;
         await this.cycle();
         if (Math.random() < 0.12) wait += jit(900, 2600);
@@ -413,6 +419,12 @@ export class TradeWorker {
   }
 
   async acceptAll(offers, page, collection) {
+    const run = await this.bot.runExclusive("echange", () => this.doAcceptAll(offers, page, collection));
+    if (run.skipped) return 0;
+    return run.value;
+  }
+
+  async doAcceptAll(offers, page, collection) {
     let done = 0;
     for (const offer of offers) {
       if (!this.running) break;
