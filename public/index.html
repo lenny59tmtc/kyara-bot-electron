@@ -572,9 +572,26 @@
           <option value="total">Taille de l'album ↑</option>
           <option value="completion">Complétion ↑</option>
           <option value="completion_desc">Complétion ↓ (les plus avancées)</option>
+          <option value="missing">Cartes manquantes ↑</option>
           <option value="name">Nom A → Z</option>
         </select>
+        <label class="row sub2" title="S'applique en plus du filtre choisi">
+          <input type="checkbox" id="seriesHideCompleted" /> Masquer les albums complétés
+        </label>
+        <select id="seriesMissingRarity" title="Masque les albums où il manque au moins une carte de cette rareté" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px">
+          <option value="">Ne pas masquer par rareté</option>
+          <option value="M">Masquer si Mythique incomplet</option>
+          <option value="L">Masquer si Légendaire incomplet</option>
+          <option value="E">Masquer si Épique incomplet</option>
+          <option value="R">Masquer si Rare incomplet</option>
+          <option value="U">Masquer si Peu commun incomplet</option>
+          <option value="C">Masquer si Commun incomplet</option>
+        </select>
       </div>
+      <p class="sub2" style="margin:-4px 0 12px">
+        Astuce : coche « Masquer les albums complétés » et choisis une rareté (ex. Mythique) pour ne garder que les
+        albums dont les cartes chères sont déjà complètes, puis trie par « Cartes manquantes ↑ ».
+      </p>
       <div id="seriesGrid" class="series-grid"><div class="empty">Chargement…</div></div>
     </div>
   </section>
@@ -1851,22 +1868,36 @@ function renderSeries() {
   const query = $("seriesQ").value.trim().toLowerCase();
   const filter = $("seriesFilter").value;
   const sort = $("seriesSort").value;
+  const hideCompleted = $("seriesHideCompleted").checked;
+  const missingRarity = $("seriesMissingRarity").value;
   let rows = seriesData.rows.filter((row) => {
     if (query && !String(row.series).toLowerCase().includes(query)) return false;
     switch (filter) {
       case "owned":
-        return row.owned >= 1;
+        if (row.owned < 1) return false;
+        break;
       case "owned5":
-        return row.owned >= 5;
+        if (row.owned < 5) return false;
+        break;
       case "size5":
-        return row.total >= 5;
+        if (row.total < 5) return false;
+        break;
       case "completed":
-        return row.completed;
+        if (!row.completed) return false;
+        break;
       case "incomplete":
-        return !row.completed;
+        if (row.completed) return false;
+        break;
       default:
-        return true;
+        break;
     }
+    // Filtres globaux, indépendants du filtre principal.
+    if (hideCompleted && row.completed) return false;
+    if (missingRarity) {
+      const rarity = row.rarities?.[missingRarity];
+      if (rarity && rarity.total > 0 && rarity.owned < rarity.total) return false;
+    }
+    return true;
   });
   if (sort === "total") {
     rows.sort((a, b) => a.total - b.total || a.owned - b.owned || a.series.localeCompare(b.series, "fr"));
@@ -1876,6 +1907,8 @@ function renderSeries() {
     rows.sort((a, b) => a.completion - b.completion || a.owned - b.owned || a.series.localeCompare(b.series, "fr"));
   } else if (sort === "completion_desc") {
     rows.sort((a, b) => b.completion - a.completion || b.owned - a.owned || a.series.localeCompare(b.series, "fr"));
+  } else if (sort === "missing") {
+    rows.sort((a, b) => a.missing - b.missing || b.completion - a.completion || a.series.localeCompare(b.series, "fr"));
   } else {
     rows.sort((a, b) => a.owned - b.owned || a.total - b.total || a.series.localeCompare(b.series, "fr"));
   }
@@ -1890,9 +1923,14 @@ function renderSeries() {
   ]
     .map(([key, value]) => `<div class="stat"><div class="v">${escapeHtml(String(value))}</div><div class="k">${key}</div></div>`)
     .join("");
+  const contradiction = hideCompleted && filter === "completed";
   $("seriesGrid").innerHTML = rows.length
     ? rows.map(seriesCard).join("")
-    : '<div class="empty">Aucun album ne correspond aux filtres.</div>';
+    : `<div class="empty">${
+        contradiction
+          ? "Le filtre « Albums complétés » est incompatible avec « Masquer les albums complétés »."
+          : "Aucun album ne correspond aux filtres."
+      }</div>`;
 }
 
 async function loadSeries() {
@@ -2408,6 +2446,8 @@ $("seriesRefresh").addEventListener("click", () => loadSeries());
 $("seriesQ").addEventListener("input", renderSeries);
 $("seriesFilter").addEventListener("change", renderSeries);
 $("seriesSort").addEventListener("change", renderSeries);
+$("seriesHideCompleted").addEventListener("change", renderSeries);
+$("seriesMissingRarity").addEventListener("change", renderSeries);
 $("seriesGrid").addEventListener("click", (event) => {
   const button = event.target.closest("[data-series-buy]");
   if (!button) return;

@@ -7,6 +7,14 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 3.1.0
+
+- **Filtres globaux dans Séries** : possibilité de **masquer les albums complétés** quel que soit le filtre principal.
+- **Masquer les albums où une rareté est incomplète** : choix de la rareté (Commun → Mythique) pour ne garder que les
+  albums dont les cartes chères sont complètes — utile pour viser les albums les moins chers à compléter.
+- Nouveau tri **« Cartes manquantes ↑ »** pour afficher d'abord les albums les plus proches du complet.
+- Les filtres se combinent avec la recherche et le tri existants ; une astuce d'usage est affichée dans l'onglet.
+
 ## Nouveautés de la version 3.0.0
 
 - **Audit complet du processus Playwright** : le navigateur tourne désormais en **headless natif**, sans aucune fenêtre
@@ -452,9 +460,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-3.0.0.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-3.0.0.exe` — exécutable portable
-- `Kyara-Bot-3.0.0-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-3.1.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-3.1.0.exe` — exécutable portable
+- `Kyara-Bot-3.1.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -478,8 +486,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v3.0.0
-git push origin v3.0.0
+git tag v3.1.0
+git push origin v3.1.0
 ```
 
 ---
