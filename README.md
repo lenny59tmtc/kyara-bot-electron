@@ -7,6 +7,22 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 3.0.0
+
+- **Audit complet du processus Playwright** : le navigateur tourne désormais en **headless natif**, sans aucune fenêtre
+  (ni à l'écran, ni minimisée dans la barre des tâches). Fini le masquage Windows fragile (`ShowWindow`) qui laissait
+  réapparaître la fenêtre.
+- **Fenêtre visible uniquement pour la connexion Discord** : si la session expire, une fenêtre temporaire s'ouvre
+  pour le login, puis se referme automatiquement environ 20 s après l'authentification et Chromium repasse en headless.
+- **Empreinte headless atténuée** : user-agent Chrome normal (pas `HeadlessChrome`), `navigator.webdriver` supprimé,
+  plugins/langues/WebGL harmonisés, conservation du profil et de la session.
+- **Bascule manuelle** : bouton « Afficher Chromium » / « Masquer Chromium » (redémarrage du navigateur dans le mode
+  choisi) ; l'option « Chromium sans fenêtre (headless, arrière-plan) » est activée par défaut.
+- **Corrections de fiabilité** : les redémarrages intentionnels de Chromium ne déclenchent plus de fausse alerte de
+  fermeture ; le verrou de lancement est conservé ; le mode headless a été testé avec authentification, analyse de
+  marché et bascule visible/headless.
+- Le mode visible reste disponible en décochant l'option (utile pour du diagnostic).
+
 ## Nouveautés de la version 2.0.3
 
 - **Fenêtre Chromium complètement masquée sous Windows** : quand « Chromium en arrière-plan » est activé, la fenêtre
@@ -436,9 +452,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-2.0.3.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-2.0.3.exe` — exécutable portable
-- `Kyara-Bot-2.0.3-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-3.0.0.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-3.0.0.exe` — exécutable portable
+- `Kyara-Bot-3.0.0-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -462,8 +478,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v2.0.3
-git push origin v2.0.3
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 ---

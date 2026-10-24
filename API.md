@@ -192,7 +192,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoOpen, browserBackground, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth, sellMaxAgeHours, autoBuy, buyMaxPrice, buyPriority, buyIntervalMin, buyIntervalMax, buyMaxPerRun }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
-| POST | `/api/bot/browser/visibility` | Masque/affiche complètement la fenêtre Chromium : `{hidden: true\|false}` |
+| POST | `/api/bot/browser/visibility` | Bascule Chromium headless/visible : `{hidden: true\|false}` (redémarre le navigateur) |
 | GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) ; un état écrit par une version précédente est ignoré |
 | POST | `/api/update/check` | Vérifie immédiatement la dernière Release et renvoie la version courante, la dernière version et `updateAvailable` |
 | POST | `/api/update/install` | Demande le téléchargement puis l'installation de la mise à jour (bouton du tableau de bord) |
@@ -273,6 +273,9 @@ Fichiers de données : `data/history.jsonl`, `data/batches.jsonl`, `data/trades.
   `/market/listings` par personnage, ce qui supprime la source des `rate_limited`. Deux petites pauses irrégulières
   séparent les appels de collection et du catalogue.
 - `GET /api/me/market` reste interrogé une fois pour connaître les annonces actives.
+- **Chromium headless par défaut** (`browserBackground: true`) : aucune fenêtre ni entrée dans la barre des tâches.
+  Le mode visible n'est utilisé que pour la connexion Discord ou si l'option est décochée ; après authentification,
+  le bot revient automatiquement en headless. `POST /api/bot/browser/visibility` permet de basculer le mode.
 - `POST /api/bot/browser/restart` ferme puis relance Chromium (bouton « Relancer Chromium » de l'interface).
 
 ### Mises à jour (electron-updater)

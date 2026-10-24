@@ -55,6 +55,11 @@ export class KyaraBot {
     this.lastRateLimitLog = 0;
     this.activity = null;
     this.activitySince = null;
+    this.forceVisible = false;
+    this.manualVisible = false;
+    this.loginFlow = false;
+    this.visibleUntil = 0;
+    this.restarting = false;
     this.trades = new TradeWorker(this);
     this.seller = new SellerWorker(this);
     this.buyer = new BuyerWorker(this);
@@ -281,8 +286,12 @@ export class KyaraBot {
   }
 
   async launchBrowserWithWatchdog() {
+    const headless = this.browserHeadless();
+    this.log("info", headless ? "Lancement de Chromium sans fenêtre (headless)…" : "Lancement de Chromium visible…");
     const options = {
-      headless: false,
+      headless,
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
       viewport: { width: 1280 + Math.floor(Math.random() * 160), height: 800 + Math.floor(Math.random() * 120) },
       args: [
         "--disable-blink-features=AutomationControlled",
@@ -373,7 +382,7 @@ export class KyaraBot {
       this.page = null;
       this.state.browserOpen = false;
       this.state.browserClosed = true;
-      if (this.running) this.log("warn", "Chromium a été fermé — relance automatique programmée");
+      if (this.running && !this.restarting) this.log("warn", "Chromium a été fermé — relance automatique programmée");
       bus.emit("state", this.snapshot());
     });
     await this.context.addInitScript(() => {
@@ -410,85 +419,14 @@ export class KyaraBot {
   }
 
   /**
-   * Masque complètement la fenêtre Chromium sous Windows (sans passer en
-   * headless, pour conserver la même empreinte navigateur). `hidden=false`
-   * la réaffiche.
+   * Mode navigateur : headless complet par défaut (aucune fenêtre, aucune
+   * entrée dans la barre des tâches), sauf pendant une connexion Discord ou
+   * une demande explicite d'affichage.
    */
-  chromiumWindowScript(action) {
-    const profile = PROFILE_DIR.replace(/'/g, "''");
-    return `
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class KyaraWin {
-  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-}
-'@
-$profile = '${profile}'
-$targets = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like "*--user-data-dir=$profile*" } | ForEach-Object { [uint32]$_.ProcessId })
-$script:count = 0
-[KyaraWin]::EnumWindows({ param($h,$l)
-  [uint32]$procId = 0
-  [void][KyaraWin]::GetWindowThreadProcessId($h,[ref]$procId)
-  if ($targets -contains $procId) {
-    $sb = New-Object System.Text.StringBuilder 512
-    [void][KyaraWin]::GetWindowText($h,$sb,512)
-    if ($sb.Length -gt 0) {
-      [void][KyaraWin]::ShowWindow($h, ${action})
-      $script:count++
-    }
-  }
-  return $true
-}, [IntPtr]::Zero) | Out-Null
-if ($script:count -gt 0) { 'ok' } else { 'none' }
-`;
+  browserHeadless() {
+    return this.config.browserBackground !== false && !this.forceVisible;
   }
 
-  async setChromiumWindowHidden(hidden) {
-    if (process.platform !== "win32") return false;
-    const action = hidden ? 0 : 9; // SW_HIDE / SW_RESTORE
-    try {
-      const output = await new Promise((resolve, reject) => {
-        execFile(
-          "powershell.exe",
-          ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", this.chromiumWindowScript(action)],
-          { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 },
-          (error, stdout) => {
-            if (error) reject(error);
-            else resolve(String(stdout || "").trim());
-          },
-        );
-      });
-      const ok = output === "ok";
-      if (ok) {
-        this.state.browserHidden = hidden;
-        bus.emit("state", this.snapshot());
-      }
-      return ok;
-    } catch (error) {
-      this.log("warn", `Masquage Chromium indisponible: ${String(error?.message || error).split("\n")[0]}`);
-      return false;
-    }
-  }
-
-  async hideBrowserWindow() {
-    return this.setChromiumWindowHidden(true);
-  }
-
-  async showBrowserWindow() {
-    return this.setChromiumWindowHidden(false);
-  }
-
-  /**
-   * Minimise la fenêtre Chromium pour ne pas voler le focus. `focus: true`
-   * la restaure et la met au premier plan (connexion Discord demandée).
-   * Sous Windows, le mode arrière-plan masque aussi complètement la fenêtre.
-   */
   async applyBrowserWindowMode({ focus = false } = {}) {
     const context = this.context;
     if (!context || context.isClosed()) return false;
@@ -497,30 +435,72 @@ if ($script:count -gt 0) { 'ok' } else { 'none' }
         ? this.page
         : context.pages().find((candidate) => !candidate.isClosed());
     if (!page) return false;
+    const headless = this.browserHeadless();
+    this.state.browserHidden = headless;
+    if (headless) {
+      bus.emit("state", this.snapshot());
+      return true;
+    }
     try {
       const session = await context.newCDPSession(page);
       const { windowId } = await session.send("Browser.getWindowForTarget");
       this.windowSession = session;
       this.windowId = windowId;
-      const background = this.config?.browserBackground !== false;
-      if (background && !focus) {
-        await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "minimized" } });
-        await this.setChromiumWindowHidden(true);
-      } else {
-        await this.setChromiumWindowHidden(false);
-        await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
-        await page.bringToFront().catch(() => {});
-      }
+      await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
+      if (focus) await page.bringToFront().catch(() => {});
+      bus.emit("state", this.snapshot());
       return true;
     } catch (error) {
       const message = String(error?.message || error).split("\n")[0];
-      this.log("warn", `Mode arrière-plan Chromium indisponible: ${message}`);
+      this.log("warn", `Mode fenêtre Chromium indisponible: ${message}`);
       return false;
     }
   }
 
   async focusBrowserWindow() {
     return this.applyBrowserWindowMode({ focus: true });
+  }
+
+  /** Repasse en headless (aucune fenêtre) et relance Chromium dans ce mode. */
+  async hideBrowserWindow() {
+    this.forceVisible = false;
+    this.manualVisible = false;
+    this.loginFlow = false;
+    this.visibleUntil = 0;
+    this.config = saveConfig({ browserBackground: true });
+    this.log("info", "Chromium repasse sans fenêtre (headless)");
+    await this.restartBrowser();
+    this.state.browserHidden = true;
+    bus.emit("state", this.snapshot());
+    return true;
+  }
+
+  /** Affiche Chromium (mode visible temporaire, sans connexion demandée). */
+  async showBrowserWindow() {
+    this.forceVisible = true;
+    this.manualVisible = true;
+    this.loginFlow = false;
+    this.visibleUntil = 0;
+    this.config = saveConfig({ browserBackground: false });
+    this.log("info", "Chromium affiché en mode visible");
+    await this.restartBrowser();
+    await this.focusBrowserWindow();
+    return true;
+  }
+
+  /** Après une connexion Discord, referme la fenêtre et repasse en headless. */
+  async maybeReturnToHeadless() {
+    if (!this.forceVisible || this.manualVisible || this.loginFlow) return false;
+    if (!this.visibleUntil || Date.now() < this.visibleUntil) return false;
+    if (!this.state.authenticated) return false;
+    if (this.activity || this.opening > 0) return false;
+    const page = this.page;
+    if (page && !page.isClosed() && !page.url().startsWith(BASE)) return false;
+    this.forceVisible = false;
+    this.visibleUntil = 0;
+    this.log("info", "Connexion confirmée — Chromium repasse en arrière-plan sans fenêtre");
+    await this.restartBrowser();
+    return true;
   }
 
   attach(page) {
@@ -808,6 +788,10 @@ if ($script:count -gt 0) { 'ok' } else { 'none' }
       this.state.rateLimitedUntil = null;
       try {
         await this.ensureBrowser();
+        if (await this.maybeReturnToHeadless()) {
+          await sleep(2500);
+          continue;
+        }
 
         // Pendant le login Discord, la fenêtre n'est plus sur kyara.games :
         // on attend le retour sur le site sans la fermer.
@@ -827,7 +811,16 @@ if ($script:count -gt 0) { 'ok' } else { 'none' }
         } else {
           const me = await this.api("/me");
           if (me?.error) throw new Error(`API /me: ${me.error}`);
+          const wasAuthenticated = this.state.authenticated;
           this.applyMe(me);
+          if (!wasAuthenticated && this.state.authenticated && this.loginFlow) {
+            this.loginFlow = false;
+            this.visibleUntil = Date.now() + 20000;
+            this.log("info", "Connexion Discord confirmée — retour en arrière-plan sans fenêtre dans 20 s");
+          } else if (this.loginFlow && this.state.authenticated) {
+            this.loginFlow = false;
+            this.visibleUntil = Date.now() + 15000;
+          }
           this.state.authWarned = false;
           this.state.lastError = null;
 
@@ -914,25 +907,46 @@ if ($script:count -gt 0) { 'ok' } else { 'none' }
 
   async restartBrowser() {
     this.log("info", "Redémarrage du navigateur demandé…");
+    this.restarting = true;
     try {
-      await this.context?.close();
-    } catch {}
-    this.context = null;
-    this.page = null;
-    this.state.browserOpen = false;
-    this.state.browserClosed = false;
-    this.rateLimitedUntil = 0;
-    this.state.rateLimitedUntil = null;
-    await this.ensureBrowser();
-    bus.emit("state", this.snapshot());
-    return true;
+      try {
+        await this.context?.close();
+      } catch {}
+      this.context = null;
+      this.page = null;
+      this.state.browserOpen = false;
+      this.state.browserClosed = false;
+      this.rateLimitedUntil = 0;
+      this.state.rateLimitedUntil = null;
+      await this.ensureBrowser();
+      bus.emit("state", this.snapshot());
+      return true;
+    } finally {
+      this.restarting = false;
+    }
   }
 
   async openLogin() {
+    // En mode headless, on rouvre temporairement une fenêtre visible pour que
+    // l'utilisateur puisse terminer la connexion Discord. Elle se refermera
+    // automatiquement après authentification.
+    if (this.config.browserBackground !== false && !this.forceVisible) {
+      this.forceVisible = true;
+      this.manualVisible = false;
+      this.loginFlow = true;
+      this.log("info", "Connexion Discord : ouverture temporaire d'une fenêtre Chromium…");
+      try {
+        await this.restartBrowser();
+      } catch (error) {
+        this.log("warn", `Ouverture de la fenêtre de connexion impossible: ${error?.message || error}`);
+        return false;
+      }
+    } else if (this.config.browserBackground !== false) {
+      this.loginFlow = true;
+    }
     await this.ensureBrowser();
     const page = this.page;
     if (!page || page.isClosed()) return false;
-    // Connexion demandée par l'utilisateur : on restaure la fenêtre au premier plan.
     await this.focusBrowserWindow();
     try {
       if (!page.url().startsWith(BASE)) {

@@ -440,12 +440,12 @@
           <span class="switch"><input type="checkbox" id="autoOpen" /><span class="slider"></span></span>
         </label>
         <label class="switch-row">
-          <span>Chromium en arrière-plan (fenêtre masquée)</span>
+          <span>Chromium sans fenêtre (headless, arrière-plan)</span>
           <span class="switch"><input type="checkbox" id="browserBackground" /><span class="slider"></span></span>
         </label>
         <p class="sub2 cfg-note">
-          Sous Windows, la fenêtre Chromium est complètement masquée ; sur les autres systèmes elle est minimisée.
-          Elle réapparaît pour la connexion Discord.
+          Aucune fenêtre Chromium en fonctionnement (même pas dans la barre des tâches). Une fenêtre visible s'ouvre
+          uniquement pour la connexion Discord, puis se referme automatiquement.
         </p>
         <label>Vérifier toutes les X secondes
           <input type="number" id="poll" min="15" max="600" step="5" />
@@ -2385,12 +2385,15 @@ $("browserVisibility").addEventListener("click", async () => {
     });
     const result = await response.json();
     if (!result.ok) {
-      toast("Masquage complet indisponible sur ce système — utilise « Relancer Chromium » ou minimise la fenêtre");
+      toast("Changement de mode Chromium impossible pour le moment");
       return;
     }
-    toast(hide ? "Fenêtre Chromium masquée" : "Fenêtre Chromium affichée");
+    toast(hide ? "Chromium repasse sans fenêtre" : "Fenêtre Chromium affichée");
     if (state) state.browserHidden = result.hidden;
     button.textContent = result.hidden ? "Afficher Chromium" : "Masquer Chromium";
+    try {
+      applyConfig(await (await fetch("/api/config")).json());
+    } catch {}
   } catch {
     toast("Impossible de modifier la visibilité de Chromium");
   } finally {

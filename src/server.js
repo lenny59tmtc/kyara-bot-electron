@@ -326,17 +326,28 @@ export function createServer(bot) {
         const cur = loadConfig();
         if (cur.batchMax < patch.batchMin) patch.batchMax = patch.batchMin;
       }
+      const previousBackground = bot.config.browserBackground;
       bot.config = saveConfig(patch);
       bot.state.pack = bot.config.pack;
       if (patch.tradesAuto === true) bot.lastDupCheck = 0;
       bus.emit("state", bot.snapshot());
+      if (patch.browserBackground !== undefined && previousBackground !== bot.config.browserBackground && bot.running) {
+        // Le mode sans fenêtre / visible nécessite un redémarrage de Chromium.
+        setTimeout(() => {
+          bot.restartBrowser().catch(() => {});
+        }, 700);
+      }
       return json(res, bot.config);
     }
     if (url.pathname === "/api/bot/browser/visibility" && req.method === "POST") {
-      const body = await readBody(req);
-      const hidden = body.hidden !== false;
-      const ok = hidden ? await bot.hideBrowserWindow() : await bot.showBrowserWindow();
-      return json(res, { ok, hidden: bot.state.browserHidden === true });
+      try {
+        const body = await readBody(req);
+        const hidden = body.hidden !== false;
+        const ok = hidden ? await bot.hideBrowserWindow() : await bot.showBrowserWindow();
+        return json(res, { ok, hidden: bot.state.browserHidden === true });
+      } catch (e) {
+        return json(res, { ok: false, error: e?.message || String(e) });
+      }
     }
     if (url.pathname === "/api/bot/browser/restart" && req.method === "POST") {
       try {
