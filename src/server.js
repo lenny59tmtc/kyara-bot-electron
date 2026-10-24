@@ -332,6 +332,12 @@ export function createServer(bot) {
       bus.emit("state", bot.snapshot());
       return json(res, bot.config);
     }
+    if (url.pathname === "/api/bot/browser/visibility" && req.method === "POST") {
+      const body = await readBody(req);
+      const hidden = body.hidden !== false;
+      const ok = hidden ? await bot.hideBrowserWindow() : await bot.showBrowserWindow();
+      return json(res, { ok, hidden: bot.state.browserHidden === true });
+    }
     if (url.pathname === "/api/bot/browser/restart" && req.method === "POST") {
       try {
         await bot.restartBrowser();

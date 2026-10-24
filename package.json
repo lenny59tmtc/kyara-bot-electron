@@ -1,7 +1,7 @@
 {
   "name": "kyara-bot-electron",
   "productName": "Kyara Bot",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "private": true,
   "description": "Kyara Booster Bot — application de bureau Electron (serveur local, tableau de bord et moteur d'échanges automatiques)",
   "author": "lenny59tmtc",

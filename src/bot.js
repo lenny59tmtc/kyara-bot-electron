@@ -89,6 +89,7 @@ export class KyaraBot {
       marketMaxListings: 10,
       userId: null,
       activity: null,
+      browserHidden: false,
       log: [],
     };
   }
@@ -409,8 +410,84 @@ export class KyaraBot {
   }
 
   /**
+   * Masque complètement la fenêtre Chromium sous Windows (sans passer en
+   * headless, pour conserver la même empreinte navigateur). `hidden=false`
+   * la réaffiche.
+   */
+  chromiumWindowScript(action) {
+    const profile = PROFILE_DIR.replace(/'/g, "''");
+    return `
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class KyaraWin {
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+'@
+$profile = '${profile}'
+$targets = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like "*--user-data-dir=$profile*" } | ForEach-Object { [uint32]$_.ProcessId })
+$script:count = 0
+[KyaraWin]::EnumWindows({ param($h,$l)
+  [uint32]$procId = 0
+  [void][KyaraWin]::GetWindowThreadProcessId($h,[ref]$procId)
+  if ($targets -contains $procId) {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][KyaraWin]::GetWindowText($h,$sb,512)
+    if ($sb.Length -gt 0) {
+      [void][KyaraWin]::ShowWindow($h, ${action})
+      $script:count++
+    }
+  }
+  return $true
+}, [IntPtr]::Zero) | Out-Null
+if ($script:count -gt 0) { 'ok' } else { 'none' }
+`;
+  }
+
+  async setChromiumWindowHidden(hidden) {
+    if (process.platform !== "win32") return false;
+    const action = hidden ? 0 : 9; // SW_HIDE / SW_RESTORE
+    try {
+      const output = await new Promise((resolve, reject) => {
+        execFile(
+          "powershell.exe",
+          ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", this.chromiumWindowScript(action)],
+          { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 },
+          (error, stdout) => {
+            if (error) reject(error);
+            else resolve(String(stdout || "").trim());
+          },
+        );
+      });
+      const ok = output === "ok";
+      if (ok) {
+        this.state.browserHidden = hidden;
+        bus.emit("state", this.snapshot());
+      }
+      return ok;
+    } catch (error) {
+      this.log("warn", `Masquage Chromium indisponible: ${String(error?.message || error).split("\n")[0]}`);
+      return false;
+    }
+  }
+
+  async hideBrowserWindow() {
+    return this.setChromiumWindowHidden(true);
+  }
+
+  async showBrowserWindow() {
+    return this.setChromiumWindowHidden(false);
+  }
+
+  /**
    * Minimise la fenêtre Chromium pour ne pas voler le focus. `focus: true`
    * la restaure et la met au premier plan (connexion Discord demandée).
+   * Sous Windows, le mode arrière-plan masque aussi complètement la fenêtre.
    */
   async applyBrowserWindowMode({ focus = false } = {}) {
     const context = this.context;
@@ -426,9 +503,14 @@ export class KyaraBot {
       this.windowSession = session;
       this.windowId = windowId;
       const background = this.config?.browserBackground !== false;
-      const windowState = background && !focus ? "minimized" : "normal";
-      await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState } });
-      if (windowState === "normal") await page.bringToFront().catch(() => {});
+      if (background && !focus) {
+        await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "minimized" } });
+        await this.setChromiumWindowHidden(true);
+      } else {
+        await this.setChromiumWindowHidden(false);
+        await session.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
+        await page.bringToFront().catch(() => {});
+      }
       return true;
     } catch (error) {
       const message = String(error?.message || error).split("\n")[0];

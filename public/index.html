@@ -440,11 +440,12 @@
           <span class="switch"><input type="checkbox" id="autoOpen" /><span class="slider"></span></span>
         </label>
         <label class="switch-row">
-          <span>Chromium en arrière-plan (sans vol de focus)</span>
+          <span>Chromium en arrière-plan (fenêtre masquée)</span>
           <span class="switch"><input type="checkbox" id="browserBackground" /><span class="slider"></span></span>
         </label>
         <p class="sub2 cfg-note">
-          La fenêtre Chromium démarre minimisée et ne passe au premier plan que pour la connexion Discord.
+          Sous Windows, la fenêtre Chromium est complètement masquée ; sur les autres systèmes elle est minimisée.
+          Elle réapparaît pour la connexion Discord.
         </p>
         <label>Vérifier toutes les X secondes
           <input type="number" id="poll" min="15" max="600" step="5" />
@@ -495,6 +496,7 @@
         <h2 style="margin:0">Mes doublons & prix de vente conseillé</h2>
         <div class="spacer"></div>
         <span class="sub2" id="dupAt"></span>
+        <button class="ghost" id="browserVisibility" title="Masquer ou afficher complètement la fenêtre Chromium">Masquer Chromium</button>
         <button class="ghost" id="browserRestart" title="Relance Chromium sans redémarrer le bot">Relancer Chromium</button>
         <button class="ghost" id="dupRefresh">Rafraîchir le marché</button>
       </div>
@@ -1128,6 +1130,9 @@ function renderState() {
       recyclage: "recyclage",
     };
     $("activityState").textContent = state.activity ? `activité : ${labels[state.activity] || state.activity}` : "";
+  }
+  if ($("browserVisibility")) {
+    $("browserVisibility").textContent = state.browserHidden ? "Afficher Chromium" : "Masquer Chromium";
   }
   if (needsLogin) {
     $("user").innerHTML = "<b>Compte invité</b> · connexion Discord requise";
@@ -2368,6 +2373,30 @@ $("tabRecycle").addEventListener("click", () => switchTab("recycle"));
 $("tabBuy").addEventListener("click", () => switchTab("buy"));
 $("dupRefresh").addEventListener("click", () => loadDuplicates(true));
 $("browserRestart").addEventListener("click", restartBrowser);
+$("browserVisibility").addEventListener("click", async () => {
+  const hide = state?.browserHidden !== true;
+  const button = $("browserVisibility");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/bot/browser/visibility", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hidden: hide }),
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      toast("Masquage complet indisponible sur ce système — utilise « Relancer Chromium » ou minimise la fenêtre");
+      return;
+    }
+    toast(hide ? "Fenêtre Chromium masquée" : "Fenêtre Chromium affichée");
+    if (state) state.browserHidden = result.hidden;
+    button.textContent = result.hidden ? "Afficher Chromium" : "Masquer Chromium";
+  } catch {
+    toast("Impossible de modifier la visibilité de Chromium");
+  } finally {
+    button.disabled = false;
+  }
+});
 $("systemAction").addEventListener("click", restartBrowser);
 $("dupQ").addEventListener("input", renderDup);
 $("dupRarity").addEventListener("change", renderDup);

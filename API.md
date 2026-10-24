@@ -192,6 +192,7 @@ annonces `section.board ul.offers li.offer`, bouton `li .acts button.btn-acc`) e
 | POST | `/api/config` | `{ pack, pollSeconds, openDaily, soundOnRare, batchMin, batchMax, tradesAuto, autoOpen, browserBackground, autoSell, sellMaxRarity, sellPricing, sellDelayMin, sellDelayMax, sellStealth, sellMaxAgeHours, autoBuy, buyMaxPrice, buyPriority, buyIntervalMin, buyIntervalMax, buyMaxPerRun }` |
 | POST | `/api/sell` | Mise en vente manuelle d'un doublon |
 | POST | `/api/bot/browser/restart` | Ferme puis relance Chromium (récupération manuelle) |
+| POST | `/api/bot/browser/visibility` | Masque/affiche complètement la fenêtre Chromium : `{hidden: true\|false}` |
 | GET | `/api/update` | État GitHub + état auto-update (`auto: {phase, supported, percent, latestVersion}`) ; un état écrit par une version précédente est ignoré |
 | POST | `/api/update/check` | Vérifie immédiatement la dernière Release et renvoie la version courante, la dernière version et `updateAvailable` |
 | POST | `/api/update/install` | Demande le téléchargement puis l'installation de la mise à jour (bouton du tableau de bord) |

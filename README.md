@@ -7,6 +7,16 @@ et le navigateur Chromium piloté par Playwright ouvre le site pour les ouvertur
 > Projet personnel, non affilié à kyara.games. L'automatisation d'un site peut contrevenir à ses conditions
 > d'utilisation : tu restes responsable de l'usage que tu en fais.
 
+## Nouveautés de la version 2.0.3
+
+- **Fenêtre Chromium complètement masquée sous Windows** : quand « Chromium en arrière-plan » est activé, la fenêtre
+  n'apparaît plus du tout (ni à l'écran ni dans la barre des tâches), tout en restant en mode navigateur normal
+  (pas headless, empreinte inchangée).
+- Bouton **« Masquer Chromium » / « Afficher Chromium »** dans l'onglet Doublons pour reprendre la main à tout moment.
+- La fenêtre est automatiquement réaffichée lors d'une demande de connexion Discord.
+- Sur macOS/Linux, la fenêtre reste minimisée (le masquage complet est spécifique à Windows).
+- Nouvel endpoint `POST /api/bot/browser/visibility` (`{hidden: true|false}`).
+
 ## Nouveautés de la version 2.0.2
 
 - **L'achat de cartes manquantes dans l'onglet Séries ne réinitialise plus le scroll** : après un achat, la grille est
@@ -426,9 +436,9 @@ npm run dist
 
 Résultat dans `dist/` :
 
-- `Kyara-Bot-Setup-2.0.2.exe` — installateur Windows (par utilisateur, sans admin)
-- `Kyara-Bot-Portable-2.0.2.exe` — exécutable portable
-- `Kyara-Bot-2.0.2-win-x64.zip` — version ZIP (débloquer avant extraction)
+- `Kyara-Bot-Setup-2.0.3.exe` — installateur Windows (par utilisateur, sans admin)
+- `Kyara-Bot-Portable-2.0.3.exe` — exécutable portable
+- `Kyara-Bot-2.0.3-win-x64.zip` — version ZIP (débloquer avant extraction)
 - `latest.yml` — manifeste utilisé par la mise à jour automatique
 
 Après signature manuelle de l'installateur, relance `npm run fix:latest` : le hash SHA-512 et la taille de
@@ -452,8 +462,8 @@ automatiquement l'installateur et la version portable, puis les attache à une R
 tu pousses un tag :
 
 ```bash
-git tag v2.0.2
-git push origin v2.0.2
+git tag v2.0.3
+git push origin v2.0.3
 ```
 
 ---
